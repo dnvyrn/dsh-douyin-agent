@@ -37,17 +37,17 @@ export function unwrapJson(payload, label = 'agent-browser') {
 }
 
 export class AgentBrowserCli {
-  #binary; #binaryArgs; #session; #profileDir; #namespace; #headed; #allowedDomains; #env; #spawnImpl; #outputLimit; #timeoutMs;
+  #binary; #binaryArgs; #executablePath; #session; #profileDir; #namespace; #headed; #env; #spawnImpl; #outputLimit; #timeoutMs;
 
-  constructor({ binary = 'agent-browser', binaryArgs = [], session, profileDir, namespace = 'dsh-douyin', headed = true,
-    allowedDomains = ['douyin.com'], env = process.env, spawnImpl = spawn, outputLimit = DEFAULT_OUTPUT_LIMIT, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
+  constructor({ binary = 'agent-browser', binaryArgs = [], executablePath = null, session, profileDir, namespace = 'dsh-douyin', headed = true,
+    env = process.env, spawnImpl = spawn, outputLimit = DEFAULT_OUTPUT_LIMIT, timeoutMs = DEFAULT_TIMEOUT_MS } = {}) {
     if (typeof binary !== 'string' || !binary.trim()) fail(BACKEND_CODES.INVALID_INPUT, '浏览器可执行文件名无效。');
     if (!Array.isArray(binaryArgs) || binaryArgs.some(value => typeof value !== 'string')) fail(BACKEND_CODES.INVALID_INPUT, '浏览器前置参数无效。');
+    if (executablePath !== null && (typeof executablePath !== 'string' || !executablePath.trim())) fail(BACKEND_CODES.INVALID_INPUT, '浏览器可执行文件路径无效。');
     if (!SESSION_NAME.test(String(session ?? ''))) fail(BACKEND_CODES.INVALID_INPUT, '会话名只能包含字母、数字、下划线和连字符。');
     if (typeof profileDir !== 'string' || !profileDir.trim()) fail(BACKEND_CODES.INVALID_INPUT, '必须指定专用 profile 目录。');
-    if (!Array.isArray(allowedDomains) || !allowedDomains.length) fail(BACKEND_CODES.INVALID_INPUT, '必须指定允许访问的域名。');
-    this.#binary = binary; this.#binaryArgs = [...binaryArgs]; this.#session = session; this.#profileDir = profileDir; this.#namespace = namespace;
-    this.#headed = headed === true; this.#allowedDomains = [...allowedDomains]; this.#env = env;
+    this.#binary = binary; this.#binaryArgs = [...binaryArgs]; this.#executablePath = executablePath; this.#session = session; this.#profileDir = profileDir; this.#namespace = namespace;
+    this.#headed = headed === true; this.#env = env;
     this.#spawnImpl = spawnImpl; this.#outputLimit = outputLimit; this.#timeoutMs = timeoutMs;
   }
 
@@ -55,10 +55,13 @@ export class AgentBrowserCli {
   get profileDir() { return this.#profileDir; }
 
   // 全局参数集中一处生成，测试只断言这里，不散落到各调用点。
+  // 注意：--allowed-domains 与 --profile 互斥（Chrome 可能在限制生效前恢复旧页面）。
+  // 持久登录必须用 profile，因此域名约束改由本层强制：只导航抖音 https 地址，读状态前校验 origin。
   globalArgs() {
-    const args = ['--json', '--session', this.#session, '--profile', this.#profileDir, '--namespace', this.#namespace,
-      '--allowed-domains', this.#allowedDomains.join(',')];
+    const args = ['--json', '--session', this.#session, '--profile', this.#profileDir, '--namespace', this.#namespace];
     if (this.#headed) args.push('--headed');
+    // 指定现有 Chrome 时不会触发 agent-browser 自己的浏览器下载。
+    if (this.#executablePath) args.push('--executable-path', this.#executablePath);
     return args;
   }
 
@@ -98,7 +101,10 @@ export class AgentBrowserCli {
       child.on('close', code => {
         if (settled) return;
         const out = Buffer.concat(stdout).toString('utf8').trim(), err = Buffer.concat(stderr).toString('utf8').trim();
-        if (code !== 0) return finish(Object.assign(new Error(`agent-browser 退出码 ${code}${err ? `：${err.slice(-2000)}` : ''}`), { code: BACKEND_CODES.FAILED, exitCode: code, stderr: err.slice(-2000) }));
+        if (code !== 0) {
+          const detail = jsonError(out) || err.slice(-2000);
+          return finish(Object.assign(new Error(`agent-browser 退出码 ${code}${detail ? `：${detail}` : ''}`), { code: BACKEND_CODES.FAILED, exitCode: code, stderr: err.slice(-2000) }));
+        }
         if (!out) return finish(Object.assign(new Error('agent-browser 没有返回 JSON。'), { code: BACKEND_CODES.BAD_JSON, stderr: err.slice(-2000) }));
         let parsed;
         try { parsed = JSON.parse(out); }
@@ -145,6 +151,16 @@ export class AgentBrowserCli {
   }
 
   async close(options = {}) { return this.run(['close'], options); }
+}
+
+// 失败时 CLI 可能把 {error} 写到 stdout，必须提取出来，否则只剩一个退出码。
+function jsonError(text) {
+  if (!text) return '';
+  try {
+    const value = JSON.parse(text);
+    const detail = typeof value?.error === 'string' ? value.error : value?.error?.message;
+    return typeof detail === 'string' ? detail.slice(0, 800) : '';
+  } catch { return ''; }
 }
 
 function missing(error) {

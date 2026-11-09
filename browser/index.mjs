@@ -14,14 +14,23 @@ export function resolveBackend(env = process.env) {
   fail(BACKEND_CODES.INVALID_INPUT, 'DOUYIN_BROWSER_BACKEND 只能为 agent-browser 或 playwright。');
 }
 
-export function createReadOnlyObserver({ env = process.env, paths, backend = resolveBackend(env), binary = 'agent-browser', session = 'dsh-douyin', profileDir, workDir, headed = true, spawnImpl, now, sleep, switchTimeoutMs, pollMs, frameQuality } = {}) {
+// 浏览器程序与 agent-browser 本体都可显式固定；未设置时由 CLI 自己选择。
+export function resolveLaunch({ env = process.env } = {}) {
+  return {
+    binary: env.DOUYIN_AGENT_BROWSER_BIN?.trim() || 'agent-browser',
+    executablePath: env.DOUYIN_AGENT_BROWSER_CHROME?.trim() || null,
+  };
+}
+
+export function createReadOnlyObserver({ env = process.env, paths, backend = resolveBackend(env), binary, executablePath, session = 'dsh-douyin', profileDir, workDir, headed = true, spawnImpl, now, sleep, switchTimeoutMs, pollMs, frameQuality } = {}) {
   if (!READ_ONLY_BACKENDS.includes(backend)) {
     fail(BACKEND_CODES.NOT_IMPLEMENTED, backend === 'playwright'
       ? 'Playwright 执行层仍由现有 BrowserController 提供；只读观察器目前只实现 agent-browser。'
       : '未知的浏览器执行层。');
   }
   const resolved = paths ?? resolveRuntimePaths({ env });
-  const transport = new AgentBrowserCli({ binary, session, profileDir: profileDir ?? resolved.agentBrowserProfileDir, env, spawnImpl, headed });
+  const launch = resolveLaunch({ env });
+  const transport = new AgentBrowserCli({ binary: binary ?? launch.binary, executablePath: executablePath === undefined ? launch.executablePath : executablePath, session, profileDir: profileDir ?? resolved.agentBrowserProfileDir, env, spawnImpl, headed });
   return new DouyinSession({ cli: transport, workDir: workDir ?? resolved.agentBrowserWorkDir, now, sleep, switchTimeoutMs, pollMs, frameQuality });
 }
 

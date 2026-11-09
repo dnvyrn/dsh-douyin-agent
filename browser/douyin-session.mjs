@@ -142,6 +142,26 @@ export class DouyinSession {
     });
   }
 
+  // 只允许在抖音域内导航；地址由调用方给出，不跟随页面里的任意链接。
+  async open({ url = 'https://www.douyin.com/', signal, timeoutMs = 20_000 } = {}) {
+    let target;
+    try { target = new URL(url); } catch { fail(BACKEND_CODES.INVALID_INPUT, '地址无效。'); }
+    if (target.protocol !== 'https:' || !(target.hostname === 'douyin.com' || target.hostname.endsWith('.douyin.com'))) fail(BACKEND_CODES.INVALID_INPUT, '只允许打开抖音 https 地址。');
+    return this.#exclusive(async () => {
+      const startedAt = this.#now(), deadline = startedAt + timeoutMs;
+      await this.#cli.open(target.href, { signal });
+      let last = null;
+      for (;;) {
+        last = normalizeState(await this.#cli.eval(stateScript, { signal }));
+        if (last.unsupportedPage) fail(BACKEND_CODES.NOT_DOUYIN, '导航后标签页不在抖音。');
+        if (last.documentReadyState === 'complete' || last.loginRequired || last.verificationRequired) break;
+        if (this.#now() >= deadline) break;
+        await this.#sleep(this.#pollMs, undefined, { signal });
+      }
+      return { url: last?.url ?? target.href, elapsedMs: this.#now() - startedAt, state: last };
+    });
+  }
+
   async search({ query, signal, timeoutMs = 15_000 } = {}) {
     const keyword = assertQuery(query);
     return this.#exclusive(async () => {

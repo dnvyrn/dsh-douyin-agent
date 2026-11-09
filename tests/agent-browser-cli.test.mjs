@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { AgentBrowserCli, unwrapJson } from '../browser/agent-browser-cli.mjs';
+import { resolveLaunch } from '../browser/index.mjs';
 import { BACKEND_CODES } from '../browser/contract.mjs';
 
 const FAKE = fileURLToPath(new URL('./fixtures/fake-agent-browser.mjs', import.meta.url));
@@ -27,7 +28,8 @@ const readLog = file => fs.existsSync(file) ? fs.readFileSync(file, 'utf8').trim
 
 test('全局参数固定带上会话、专用 profile、命名空间、域名白名单与有头模式', t => {
   const { cli, profileDir } = workspace(t);
-  assert.deepEqual(cli.globalArgs(), ['--json', '--session', 'test-session', '--profile', profileDir, '--namespace', 'dsh-douyin', '--allowed-domains', 'douyin.com', '--headed']);
+  assert.deepEqual(cli.globalArgs(), ['--json', '--session', 'test-session', '--profile', profileDir, '--namespace', 'dsh-douyin', '--headed']);
+  assert.equal(cli.globalArgs().includes('--allowed-domains'), false, '--allowed-domains 与 --profile 互斥，不能再发');
 });
 
 test('eval 解包 {success,data:{result}} 并只传白名单环境', async t => {
@@ -88,7 +90,6 @@ test('只允许打开 https 地址且截图参数有边界', async t => {
 test('会话名与 profile 目录缺失时在构造阶段拒绝', () => {
   assert.throws(() => new AgentBrowserCli({ session: 'has space', profileDir: '/tmp/x' }), error => error.code === BACKEND_CODES.INVALID_INPUT);
   assert.throws(() => new AgentBrowserCli({ session: 'ok' }), error => error.code === BACKEND_CODES.INVALID_INPUT);
-  assert.throws(() => new AgentBrowserCli({ session: 'ok', profileDir: '/tmp/x', allowedDomains: [] }), error => error.code === BACKEND_CODES.INVALID_INPUT);
 });
 
 test('unwrapJson 支持裸值、result 与嵌套 data', () => {
@@ -96,4 +97,27 @@ test('unwrapJson 支持裸值、result 与嵌套 data', () => {
   assert.deepEqual(unwrapJson({ success: true, data: { result: 7 } }), 7);
   assert.deepEqual(unwrapJson({ data: { data: { result: 'x' } } }), 'x');
   assert.throws(() => unwrapJson({ success: false, error: 'bad' }), error => error.code === BACKEND_CODES.FAILED);
+});
+
+test('指定现有 Chrome 时追加 --executable-path，未指定时保持空白', t => {
+  const { directory, env } = workspace(t);
+  const base = { binary: 'agent-browser', session: 's1', profileDir: path.join(directory, 'p'), env };
+  const withChrome = new AgentBrowserCli({ ...base, executablePath: '/Applications/Example.app/Contents/MacOS/Chrome' });
+  assert.deepEqual(withChrome.globalArgs().slice(-2), ['--executable-path', '/Applications/Example.app/Contents/MacOS/Chrome']);
+  assert.equal(new AgentBrowserCli(base).globalArgs().includes('--executable-path'), false);
+  assert.throws(() => new AgentBrowserCli({ ...base, executablePath: '   ' }), error => error.code === BACKEND_CODES.INVALID_INPUT);
+});
+
+test('启动配置从环境读取，空值不覆盖默认', () => {
+  assert.deepEqual(resolveLaunch({ env: {} }), { binary: 'agent-browser', executablePath: null });
+  assert.deepEqual(resolveLaunch({ env: { DOUYIN_AGENT_BROWSER_BIN: ' /opt/ab ', DOUYIN_AGENT_BROWSER_CHROME: '/Applications/Chrome' } }), { binary: '/opt/ab', executablePath: '/Applications/Chrome' });
+  assert.deepEqual(resolveLaunch({ env: { DOUYIN_AGENT_BROWSER_BIN: '  ', DOUYIN_AGENT_BROWSER_CHROME: ' ' } }), { binary: 'agent-browser', executablePath: null });
+});
+
+test('失败说明写在 stdout 的 JSON 里时也要带进错误', async t => {
+  const { directory, env } = workspace(t);
+  const failing = path.join(directory, 'fail-json.mjs');
+  fs.writeFileSync(failing, '#!/usr/bin/env node\nprocess.stdout.write(JSON.stringify({error:"--allowed-domains is not supported with --profile",success:false}));process.exit(1);\n');
+  const cli = new AgentBrowserCli({ binary: process.execPath, binaryArgs: [failing], session: 's', profileDir: path.join(directory, 'p'), env });
+  await assert.rejects(cli.eval('1'), error => error.code === BACKEND_CODES.FAILED && /not supported with --profile/.test(error.message) && error.exitCode === 1);
 });

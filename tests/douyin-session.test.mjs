@@ -182,3 +182,11 @@ test('参数边界：观察时长、帧数、搜索词与换片方向', async t 
   await assert.rejects(f.session.next({ direction: 2 }), error => error.code === BACKEND_CODES.INVALID_INPUT);
   await assert.rejects(f.session.next({ expectedVideoId: 123 }), error => error.code === BACKEND_CODES.INVALID_INPUT);
 });
+
+test('导航限制在抖音 https 域内', async t => {
+  const f = fixture(t);
+  for (const url of ['https://example.com/', 'http://www.douyin.com/', 'https://douyin.com.evil.example/']) await assert.rejects(f.session.open({ url }), error => error.code === BACKEND_CODES.INVALID_INPUT);
+  const result = await f.session.open({ url: 'https://www.douyin.com/' });
+  assert.equal(result.state.documentReadyState, 'complete');
+  assert.deepEqual(f.calls.find(call => call[0] === 'open'), ['open', 'https://www.douyin.com/']);
+});

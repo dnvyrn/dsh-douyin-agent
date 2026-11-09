@@ -33,6 +33,9 @@ verification/api-software-regression.txt
 *.tmp
 public/*-qa.png
 
+# 本机试装的 agent-browser 运行时（约 120MB，不入库）。
+/.agent-browser-runtime/
+
 # 原始实机诊断、聊天采样和发布临时目录只保留本机。
 /verification/diagnostics-local-*/
 /verification/silent-local-*/
