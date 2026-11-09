@@ -83,6 +83,23 @@ export const TOOL_DEFINITIONS = [
   {name:'douyin_spark_stop',description:'按用户要求停止自动续火花问候，取消尚未发出的问候，保留发送核对记录，不停止视频或自动回复。',parameters:empty()},
   {name:'douyin_report_status',description:'只读共享视频日报目录与已有报告摘要，不开始观看或调用模型。',parameters:empty()},
   {name:'douyin_report_generate',description:'按已留存的实际视频观察与行为证据生成今日Markdown日报，不增加浏览或模型请求，不读取人格正文、私信或QQ。',parameters:empty()},
+  {
+    name: 'douyin_agent_browser',
+    description: '用独立 Chrome（agent-browser）只读操作抖音网页，与插件自带浏览器互不影响。需本机已安装 agent-browser 且 DOUYIN_BROWSER_BACKEND=agent-browser。动作：status 读状态；open 打开抖音页面；observe 采样画面；next 换片（可带预期作品ID）；search 搜索；close 关闭窗口。不点赞、不评论、不关注、不发布；登录与验证由本人完成。',
+    parameters: {
+      type: 'object',
+      properties: {
+        action: { type: 'string', enum: ['status', 'open', 'observe', 'next', 'search', 'close'], description: '要执行的只读动作。' },
+        url: { type: 'string', maxLength: 1000, description: 'open 使用的抖音 https 地址，默认推荐流。' },
+        seconds: { type: 'number', minimum: 1, maximum: 10, description: 'observe 的采样秒数，默认 3。' },
+        frames: { type: 'integer', minimum: 1, maximum: 6, description: 'observe 保留的画面帧数，默认 3。' },
+        expect: { type: 'string', pattern: '^\\d{1,64}$', description: 'next 前要核对的当前作品ID。' },
+        query: { type: 'string', minLength: 1, maxLength: 300, description: 'search 的关键词。' },
+      },
+      required: ['action'],
+      additionalProperties: false,
+    },
+  },
   {name:'douyin_diagnostics',description:'运行本机自检，返回错误码、处理步骤、真实静默窗口状态及可修复动作。设置页通信失败时也可使用。不启动观看、模型或发送。报告不含密钥、人格、联系人正文。',parameters:empty()},
   {name:'douyin_diagnostics_repair',description:'按最近五分钟内本入口自检报告执行一个已列出的修复动作，再次自检。仅可重新应用用户已开启的静默设置；不改许可、时段、Key、记忆或发送记录，不启动服务。修复不成功时停止，不循环重试。',parameters:{type:'object',properties:{reportId:{type:'string',minLength:36,maxLength:36},action:{type:'string',enum:['reapply_silent']}},required:['reportId','action'],additionalProperties:false}},
 ];
@@ -107,6 +124,14 @@ export function validateToolArguments(definition, args) {
   if (args.seconds !== undefined && (args.seconds < 1 || args.seconds > 10)) throw new RangeError('观察时间须在 1 到 10 秒之间。');
   if (args.limit !== undefined && (args.limit < 1 || args.limit > 20)) throw new RangeError('返回条数须在 1 到 20 之间。');
   if (args.maxRequests !== undefined && args.maxRequests < 1) throw new RangeError('请求上限须为正安全整数。');
+  if (definition.name === 'douyin_agent_browser') {
+    const allowed = ['status', 'open', 'observe', 'next', 'search', 'close'];
+    if (!allowed.includes(args.action)) throw new TypeError('独立浏览器动作无效。');
+    if (args.action === 'search' && (typeof args.query !== 'string' || !args.query.trim())) throw new TypeError('搜索需要非空关键词。');
+    if (args.action === 'open' && args.url !== undefined && !/^https:\/\/(?:www\.)?douyin\.com(?:\/|$)/.test(args.url)) throw new TypeError('只能打开抖音 https 地址。');
+    if (args.frames !== undefined && (args.frames < 1 || args.frames > 6)) throw new RangeError('画面帧数须在 1 到 6 之间。');
+    if (args.expect !== undefined && !/^\d{1,64}$/.test(args.expect)) throw new TypeError('预期作品ID须为纯数字字符串。');
+  }
   if (definition.name === 'douyin_diagnostics_repair' && (!/^[a-f0-9-]{36}$/.test(args.reportId) || args.action !== 'reapply_silent')) throw new TypeError('须使用自检返回的报告编号及允许动作。');
   if(definition.name==='douyin_video_zoom'&&(!/^[a-f0-9-]{36}$/.test(args.sampleId)||!/^\d{1,64}$/.test(args.videoId)||args.cell<1||args.cell>16))throw new TypeError('须使用本入口返回的采样编号、作品ID和1至16格编号。');
   if (definition.name === 'douyin_interest_record' && (!args.evidenceId.trim() || !args.topic.trim() || !args.reflection.trim() || !['like','dislike','neutral'].includes(args.signal))) throw new TypeError('兴趣更新需要真实证据、主题、有效倾向与简短理由。');

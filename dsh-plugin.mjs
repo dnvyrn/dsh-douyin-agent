@@ -1,4 +1,5 @@
-import { TOOL_DEFINITIONS, validateToolArguments } from './tool-definitions.mjs?v=18';
+import { TOOL_DEFINITIONS, validateToolArguments } from './tool-definitions.mjs?v=19';
+import { AGENT_BROWSER_TOOL, executeAgentBrowserTool } from './browser/tool.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { resolveRuntimePaths } from './runtime-paths.mjs';
@@ -128,6 +129,8 @@ export function createNativeToolDefinitions({ ctx, getController, getWatch, getS
         if(definition.name==='douyin_watch_start') result=await watch.start({startSession:false,maxRequests:args.maxRequests??30},{explicit:true});
         else if(definition.name==='douyin_watch_stop') result=await watch.stop({explicit:true});
         else result=watch.state();
+      } else if (definition.name === AGENT_BROWSER_TOOL) {
+        result = await executeAgentBrowserTool(args, { signal: exec.signal });
       } else result = await controller.execute(definition.name, args, { signal: exec.signal });
       if (!result || typeof result !== 'object' || Array.isArray(result)) throw new Error('浏览器控制器未返回 JSON 对象。');
       if (result.ok === false && !definition.name.startsWith('douyin_diagnostics')) throw new Error(typeof result.error === 'string' ? result.error : result.error?.message ?? '抖音工具执行失败。');

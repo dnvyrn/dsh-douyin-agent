@@ -53,8 +53,8 @@ test('作品标识与搜索词边界', () => {
   for (const value of ['', '   ', 'x'.repeat(301), 'a\u0000b']) assert.throws(() => assertQuery(value), error => error.code === BACKEND_CODES.INVALID_INPUT);
 });
 
-test('后端选择默认 agent-browser、未知取值失败关闭', () => {
-  assert.equal(resolveBackend({}), 'agent-browser');
+test('后端选择默认沿用 playwright、未知取值失败关闭', () => {
+  assert.equal(resolveBackend({}), 'playwright');
   assert.equal(resolveBackend({ DOUYIN_BROWSER_BACKEND: ' agent-browser ' }), 'agent-browser');
   assert.equal(resolveBackend({ DOUYIN_BROWSER_BACKEND: 'playwright' }), 'playwright');
   assert.throws(() => resolveBackend({ DOUYIN_BROWSER_BACKEND: 'firefox' }), error => error.code === BACKEND_CODES.INVALID_INPUT);
@@ -63,7 +63,8 @@ test('后端选择默认 agent-browser、未知取值失败关闭', () => {
 test('只读观察器不冒充 Playwright 后端，agent-browser 使用独立 profile 与工作目录', () => {
   assert.throws(() => createReadOnlyObserver({ backend: 'playwright', paths: {} }), error => error.code === BACKEND_CODES.NOT_IMPLEMENTED);
   const paths = { agentBrowserProfileDir: '/tmp/dy-profile', agentBrowserWorkDir: '/tmp/dy-frames' };
-  const session = createReadOnlyObserver({ backend: 'agent-browser', paths, session: 'dsh-douyin' });
+  const session = createReadOnlyObserver({ paths, session: 'dsh-douyin' });
+  assert.ok(session, '未显式指定时使用独立浏览器后端');
   assert.ok(session);
   assert.equal(typeof session.observe, 'function');
   assert.equal(typeof session.next, 'function');

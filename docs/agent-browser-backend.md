@@ -25,6 +25,38 @@
 - **默认不动作**：不自动播放、不点赞、不评论、不关注、不发布；登录与验证一律交给本人。
 - **单写者**：同一会话并发写操作直接拒绝（`BROWSER_BUSY`），不排队堆积。
 
+## 已接入 DSH 工具表
+
+工具名：**`douyin_agent_browser`**，一个工具带 `action`，避免和现有 `douyin_observe`/`douyin_next`/`douyin_search` 语义重复：
+
+| action | 行为 |
+| --- | --- |
+| `status` | 读当前页面与播放状态（不需要有播放器） |
+| `open` | 打开抖音页面，默认推荐流；等到播放器/搜索页/登录提示才返回 |
+| `observe` | 采样 1–6 帧、1–10 秒，画面裁到播放器区域并降到 720 宽 |
+| `next` | 换片；可带 `expect` 做前置身份核对 |
+| `search` | 搜索并返回真实结果卡片 |
+| `close` | 关闭窗口（登录态留在 profile 里） |
+
+开关与边界：
+
+- 默认**关闭**：`DOUYIN_BROWSER_BACKEND` 未设置时仍是现有 Playwright 控制器；设成 `agent-browser` 才启用本工具。
+- 未安装 agent-browser 时调用会明确报“未找到可执行文件”，不会自动下载浏览器。
+- 只有 `close` 会关窗口；`observe`/`status` 不会在调用结束时关掉浏览器。
+- API 小工具默认名单不含它，避免绕过开关。
+- 工具执行仍走现有画面管线：登录/验证画面不会送进模型。
+
+```bash
+export DOUYIN_BROWSER_BACKEND=agent-browser
+export DOUYIN_AGENT_BROWSER_BIN=/path/to/agent-browser
+export DOUYIN_AGENT_BROWSER_CHROME="/Applications/Google Chrome.app/Contents/MacOS/Google Chrome"
+```
+
+```text
+douyin_agent_browser { "action": "observe", "seconds": 3, "frames": 3 }
+douyin_agent_browser { "action": "next", "expect": "7673095578359696683" }
+```
+
 ## 怎么试（需要本人同意安装）
 
 ```bash

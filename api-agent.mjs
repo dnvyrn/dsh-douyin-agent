@@ -3,7 +3,7 @@ import path from 'node:path';
 import { normalizeUsage } from './usage-ledger.mjs';
 import { videoImageParts } from './video-storyboard.mjs';
 import { parseEnv } from 'node:util';
-import { TOOL_DEFINITIONS, validateToolArguments } from './tool-definitions.mjs?v=9';
+import { TOOL_DEFINITIONS, validateToolArguments } from './tool-definitions.mjs?v=10';
 
 export const DEFAULT_QQ_ROOT = 'D:/codex分局/聊天机器人';
 export const DEFAULT_MODEL = 'deepseek-flash';
@@ -184,7 +184,7 @@ export function watchDecisionMessages(observation, { context = '', watchOptions,
 }
 
 export class ApiAgent {
-  constructor({ controller, config, personaMemory, fetchImpl = fetch, usageLedger, source = 'api', toolDefinitions = TOOL_DEFINITIONS.filter((item) => !item.name.startsWith('douyin_chat_') && !item.name.startsWith('douyin_spark_') && !['douyin_forward_video', 'douyin_watch_start', 'douyin_watch_stop'].includes(item.name)), ...limits } = {}) {
+  constructor({ controller, config, personaMemory, fetchImpl = fetch, usageLedger, source = 'api', toolDefinitions = TOOL_DEFINITIONS.filter((item) => !item.name.startsWith('douyin_chat_') && !item.name.startsWith('douyin_spark_') && !['douyin_forward_video', 'douyin_watch_start', 'douyin_watch_stop', 'douyin_agent_browser'].includes(item.name)), ...limits } = {}) {
     if (!controller?.execute || !config) throw new Error('缺少浏览器控制器或 API 配置。');
     const actualLimits = { ...DEFAULT_LIMITS, ...limits };
     for (const [name, value] of Object.entries(actualLimits)) {

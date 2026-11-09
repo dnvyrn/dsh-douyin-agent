@@ -189,6 +189,8 @@ test('导航限制在抖音 https 域内', async t => {
   const result = await f.session.open({ url: 'https://www.douyin.com/' });
   assert.equal(result.state.documentReadyState, 'complete');
   assert.deepEqual(f.calls.find(call => call[0] === 'open'), ['open', 'https://www.douyin.com/']);
+  const defaults = await f.session.open({});
+  assert.equal(defaults.url.includes('recommend=1'), true, '默认应进推荐流而不是精选首页');
 });
 
 test('短视频循环时按时间跨度计算覆盖，并标记 looped', async t => {

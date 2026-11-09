@@ -5,7 +5,7 @@ import { spawn } from 'node:child_process';
 import { randomUUID, createHash } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { MemoryStore } from './memory.mjs?v=2';
-import { TOOL_DEFINITIONS, validateToolArguments } from './tool-definitions.mjs?v=18';
+import { TOOL_DEFINITIONS, validateToolArguments } from './tool-definitions.mjs?v=19';
 import { VideoLimits } from './video-limits.mjs';
 import { resolveRuntimePaths, resolveNodeExecutable } from './runtime-paths.mjs?v=10';
 import { PersonaMemory } from './persona-memory.mjs?v=10';

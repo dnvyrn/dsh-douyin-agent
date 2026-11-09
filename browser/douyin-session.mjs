@@ -154,7 +154,8 @@ export class DouyinSession {
   }
 
   // 只允许在抖音域内导航；地址由调用方给出，不跟随页面里的任意链接。
-  async open({ url = 'https://www.douyin.com/', signal, timeoutMs = 20_000 } = {}) {
+  // 首页会跳到「精选」，那里没有推荐流播放器；默认直接进推荐流。
+  async open({ url = 'https://www.douyin.com/?recommend=1&from_nav=1', signal, timeoutMs = 20_000 } = {}) {
     let target;
     try { target = new URL(url); } catch { fail(BACKEND_CODES.INVALID_INPUT, '地址无效。'); }
     if (target.protocol !== 'https:' || !(target.hostname === 'douyin.com' || target.hostname.endsWith('.douyin.com'))) fail(BACKEND_CODES.INVALID_INPUT, '只允许打开抖音 https 地址。');

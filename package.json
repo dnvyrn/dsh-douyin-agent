@@ -32,7 +32,7 @@
     "test:macos-safety": "node tests/run-macos-safety.mjs",
     "test:native": "node --test verification/dsh-plugin.test.mjs verification/native-launch-command.test.mjs verification/native-settings.test.mjs verification/settings-transport.test.mjs tests/native-watch.test.mjs tests/native-spark.test.mjs tests/native-client.test.mjs",
     "test:browser": "node verification/browser-live.mjs",
-    "test:agent-browser": "node --test tests/agent-browser-cli.test.mjs tests/browser-contract.test.mjs tests/browser-frame-crop.test.mjs tests/douyin-session.test.mjs"
+    "test:agent-browser": "node --test tests/agent-browser-cli.test.mjs tests/browser-contract.test.mjs tests/browser-frame-crop.test.mjs tests/douyin-session.test.mjs tests/agent-browser-tool.test.mjs"
   },
   "dependencies": {
     "@playwright/cli": "0.1.22",

@@ -318,6 +318,8 @@ test('完整工具目录使用真实 DSH schema、注册表和执行管线', asy
     for (const definition of definitions) {
       assertObjectJsonSchema(definition.parameters);
       assertSupportedJsonSchema(definition.output.schema);
+      // 独立浏览器工具需要本机 agent-browser 与显式后端开关，单独在 agent-browser 测试中验证执行。
+      if (definition.name === 'douyin_agent_browser') continue;
       disposers.push(runtime.register(definition));
       const result = await runtime.execute(execution(definition.name, inputs[definition.name] ?? {}));
       assert.equal(result.isError, false, JSON.stringify(result));
