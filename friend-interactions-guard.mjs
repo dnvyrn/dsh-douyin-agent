@@ -6,7 +6,7 @@ export function readFriendInteractionsEnabled(stateDir) {
   if(fs.existsSync(path.join(stateDir,'friend-interactions-settings.guard')))return false;
   let value;
   try { value=JSON.parse(fs.readFileSync(path.join(stateDir,'friend-interactions-policy.json'),'utf8')); }
-  catch(error) {if(error.code==='ENOENT')return true;throw new Error('好友互动总开关记录损坏，已停止好友互动。');}
+  catch(error) {if(error.code==='ENOENT')return false;throw new Error('好友互动总开关记录损坏，已停止好友互动。');}
   if(!value || value.version!==1 || typeof value.enabled!=='boolean'||Object.keys(value).some(key=>!['version','enabled'].includes(key)))throw new Error('好友互动总开关记录损坏，已停止好友互动。');
   return value.enabled;
 }

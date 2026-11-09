@@ -15,6 +15,7 @@ async function until(predicate, message = '合成调度没有在预算内完成'
 async function idle(service) { await until(() => !service.busy && !service.pollScheduled && !service.pollRequested); }
 function fixture(t, extra = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-chat-wakeup-'));
+  fs.writeFileSync(path.join(directory, 'friend-interactions-policy.json'), JSON.stringify({ version: 1, enabled: true }));
   const messages = [incoming('baseline-old', '启动前旧消息')], sent = [], inputs = [];
   let reads = 0;
   const browser = {

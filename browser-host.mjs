@@ -3,7 +3,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { chromium } from './playwright-runtime.mjs';
+// Load Playwright only when actually launching; installation diagnostics and
+// injected host tests must not load a browser runtime or inspect user profiles.
 
 const execute = promisify(execFile);
 const versionOf = value => /^\d+\.\d+\.\d+\.\d+$/.exec(String(value || '').trim())?.[0] || null;
@@ -23,20 +24,31 @@ export function classifyBrowserLaunchError(error, { version } = {}) {
   else if (/unsupported.*(?:browser|version)|(?:browser|version).*(?:not supported|incompatible)|protocol.*(?:unsupported|not supported|unknown method)/i.test(raw)) { code = 'EDGE_VERSION_INCOMPATIBLE'; message = '启动异常明确报告浏览器版本或协议不兼容，请更新 Microsoft Edge 和抖音助手后重试。'; }
   return { code, message: (browserVersion ? `标准路径 Edge 版本 ${browserVersion}。` : '未读取到标准路径 Edge 版本。') + message, browserVersion, details };
 }
-async function readEdgeFileVersion(file) {
-  if (process.platform !== 'win32' || !process.env.SystemRoot) return null;
-  const shell = path.join(process.env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
-  if (!existsSync(shell)) return null;
-  const env = { ...process.env, DOUYIN_EDGE_VERSION_FILE: file };
-  const result = await execute(shell, ['-NoProfile', '-NonInteractive', '-Command', '[System.Diagnostics.FileVersionInfo]::GetVersionInfo($env:DOUYIN_EDGE_VERSION_FILE).ProductVersion'], { env, timeout: 3000, windowsHide: true, maxBuffer: 2048 });
+export async function readEdgeFileVersion(file, { platform = process.platform, env = process.env, exists = existsSync, executeImpl = execute } = {}) {
+  if (platform === 'darwin') {
+    // Read bundle metadata without launching Edge (including --version).
+    const plist = path.posix.join(path.posix.dirname(file), '..', 'Info.plist');
+    if (!exists(plist)) return null;
+    const result = await executeImpl('/usr/bin/plutil', ['-extract', 'CFBundleShortVersionString', 'raw', '-o', '-', plist], { timeout: 3000, maxBuffer: 2048 });
+    return versionOf(result.stdout);
+  }
+  if (platform !== 'win32' || !env.SystemRoot) return null;
+  const shell = path.win32.join(env.SystemRoot, 'System32', 'WindowsPowerShell', 'v1.0', 'powershell.exe');
+  if (!exists(shell)) return null;
+  const result = await executeImpl(shell, ['-NoProfile', '-NonInteractive', '-Command', '[System.Diagnostics.FileVersionInfo]::GetVersionInfo($env:DOUYIN_EDGE_VERSION_FILE).ProductVersion'], { env: { ...env, DOUYIN_EDGE_VERSION_FILE: file }, timeout: 3000, windowsHide: true, maxBuffer: 2048 });
   return versionOf(result.stdout);
 }
-export async function probeEdgeInstallation({ env = process.env, candidates, exists = existsSync, readVersion = readEdgeFileVersion } = {}) {
-  const roots = [env.LOCALAPPDATA, env.PROGRAMFILES, env['PROGRAMFILES(X86)'], ...(env.HOMEDRIVE ? [path.join(env.HOMEDRIVE + path.sep, 'Program Files'), path.join(env.HOMEDRIVE + path.sep, 'Program Files (x86)')] : [])].filter(Boolean);
-  const files = candidates || roots.map(root => path.join(root, 'Microsoft', 'Edge', 'Application', 'msedge.exe'));
+export async function probeEdgeInstallation({ platform = process.platform, env = process.env, candidates, exists = existsSync, readVersion } = {}) {
+  const win = path.win32;
+  const roots = [env.LOCALAPPDATA, env.PROGRAMFILES, env['PROGRAMFILES(X86)'], ...(env.HOMEDRIVE ? [win.join(env.HOMEDRIVE + '\\', 'Program Files'), win.join(env.HOMEDRIVE + '\\', 'Program Files (x86)')] : [])].filter(Boolean);
+  // Match Playwright's channel resolution. A per-user/custom app would need an
+  // explicit executablePath launch contract; do not report it ready prematurely.
+  const files = candidates || (platform === 'darwin'
+    ? ['/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge']
+    : platform === 'win32' ? roots.map(root => win.join(root, 'Microsoft', 'Edge', 'Application', 'msedge.exe')) : []);
   const file = files.find(candidate => exists(candidate));
   if (!file) return { installed: false, version: null, channel: 'msedge' };
-  let version = null; try { version = versionOf(await readVersion(file)); } catch {}
+  let version = null; try { version = versionOf(await (readVersion || (value => readEdgeFileVersion(value, { platform, env, exists })))(file)); } catch {}
   return { installed: true, version, channel: 'msedge' };
 }
 const focusFailure = error => Object.assign(new Error('专用 Edge 未能清除焦点模拟，已保留窗口和草稿，请重新自检。', { cause: error }), { code: 'EDGE_FOCUS_RESET_FAILED' });
@@ -110,7 +122,7 @@ export async function installNativeFocusReset(context, { onFailure = () => {}, t
   } catch (error) { await close(); throw fault || focusFailure(error); }
 }
 
-export async function runBrowserHost({ profile, controlDir, port, chromiumImpl = chromium, probeInstallation = probeEdgeInstallation, logger = console, processImpl = process } = {}) {
+export async function runBrowserHost({ profile, controlDir, port, chromiumImpl, probeInstallation = probeEdgeInstallation, logger = console, processImpl = process } = {}) {
   if (!profile || !controlDir || !Number.isInteger(port) || port < 1024 || port > 65535) return { started: false, exitCode: 2 };
   mkdirSync(controlDir, { recursive: true });
   const stateFile = path.join(controlDir, 'browser.json'); let context, installation, focusFailed = false;
@@ -122,7 +134,8 @@ export async function runBrowserHost({ profile, controlDir, port, chromiumImpl =
   try {
     writeState(false);
     try { installation = await probeInstallation(); } catch {}
-    context = await chromiumImpl.launchPersistentContext(profile, {
+    const browserRuntime = chromiumImpl ?? (await import('./playwright-runtime.mjs')).chromium;
+    context = await browserRuntime.launchPersistentContext(profile, {
       channel: 'msedge', headless: false, viewport: null, ignoreDefaultArgs: ['--mute-audio'],
       args: [`--remote-debugging-port=${port}`, '--remote-debugging-address=127.0.0.1', '--autoplay-policy=no-user-gesture-required'],
     });

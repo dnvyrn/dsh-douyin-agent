@@ -17,9 +17,9 @@ function fixture(t) {
 function location(f) {
   return { version: 1, stateDir: path.join(f.root, 'shared-state'), mediaEnvFile: path.join(f.root, 'audio.env'), mediaSettingsFile: path.join(f.root, 'media-settings.json'), mediaRuntimeRoot: path.join(f.root, 'media-runtime'), mediaModelsDir: path.join(f.root, 'models') };
 }
-test('缺少位置记录时保留旧默认值，解析过程不创建目录', t => {
+test('Windows 缺少位置记录时保留旧默认值，解析过程不创建目录', t => {
   const f = fixture(t), before = fs.readdirSync(f.root);
-  const resolved = resolveRuntimePaths({ env: { DOUYIN_RUNTIME_LOCATION_FILE: f.location, DSH_HOME: path.join(f.root, 'independent-app') }, sourceRoot: f.sourceRoot, home: f.home });
+  const resolved = resolveRuntimePaths({ env: { DOUYIN_RUNTIME_LOCATION_FILE: f.location, DSH_HOME: path.join(f.root, 'independent-app') }, sourceRoot: f.sourceRoot, home: f.home, platform: 'win32' });
   assert.equal(resolved.stateDir, path.join(f.sourceRoot, 'state'));
   assert.equal(resolved.mediaEnvFile, path.join(f.sourceRoot, 'media', '.env'));
   assert.equal(resolved.mediaSettingsFile, path.join(f.sourceRoot, 'media', 'settings.local.json'));

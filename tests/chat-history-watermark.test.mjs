@@ -39,6 +39,7 @@ test('历史兼容缺最新端、次序、旧分类或原始资格证据时拒�
 
 function fixture(t, { phase = 'model', mutation = 'history' } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-group-history-proposal-'));
+  fs.writeFileSync(path.join(directory, 'friend-interactions-policy.json'), JSON.stringify({ version: 1, enabled: true }));
   const contact = { id: 'conv:' + '4'.repeat(64), name: '合成许可群', isGroup: true, followed: null, identityVersion: 2, identityKind: 'rendered-conversation', identityHash: '4'.repeat(64), identityBinding: 'binding:' + '5'.repeat(64), identityVerified: true };
   const tracker = new MessageIdentityTracker(), sent = [], inputs = []; let stage = 'baseline', afterModelReads = 0, service;
   const browser = { listContacts: async () => ({ contacts: [contact] }), readConversation: async () => {

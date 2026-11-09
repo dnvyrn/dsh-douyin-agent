@@ -1,17 +1,17 @@
 {
   "name": "dsh-douyin-browser-local",
-  "version": "1.4.6",
+  "version": "1.4.6-macos.1",
   "type": "module",
   "description": "DSH 原生抖音工具与独立 DeepSeek 本地助手",
   "license": "MIT",
   "author": "LockyBee",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/LockyBee/dsh-douyin-agent.git"
+    "url": "git+https://github.com/dnvyrn/dsh-douyin-agent.git"
   },
-  "homepage": "https://github.com/LockyBee/dsh-douyin-agent#readme",
+  "homepage": "https://github.com/dnvyrn/dsh-douyin-agent#readme",
   "bugs": {
-    "url": "https://github.com/LockyBee/dsh-douyin-agent/issues"
+    "url": "https://github.com/dnvyrn/dsh-douyin-agent/issues"
   },
   "keywords": [
     "dsh-plugin",
@@ -28,6 +28,8 @@
   "scripts": {
     "start": "node app.mjs",
     "test": "node --test tests/*.test.mjs",
+    "test:macos": "node --test tests/macos-browser.test.mjs tests/macos-paths.test.mjs tests/diagnostics-edge.test.mjs tests/friend-interactions.test.mjs tests/friend-interactions-guard.test.mjs tests/browser-host-readiness.test.mjs && node --test --test-name-pattern='^宿主焦点：' tests/browser-host-native-focus.test.mjs",
+    "test:macos-safety": "node tests/run-macos-safety.mjs",
     "test:native": "node --test verification/dsh-plugin.test.mjs verification/native-launch-command.test.mjs verification/native-settings.test.mjs verification/settings-transport.test.mjs tests/native-watch.test.mjs tests/native-spark.test.mjs tests/native-client.test.mjs",
     "test:browser": "node verification/browser-live.mjs"
   },
@@ -146,7 +148,8 @@
     "registry": "https://registry.npmjs.org/"
   },
   "os": [
-    "win32"
+    "win32",
+    "darwin"
   ],
   "peerDependencies": {
     "@deepseek-ai/dsh": ">=0.2.0-rc.2 <0.2.1-0 || >=0.2.1-rc.2 <0.3.0-0"

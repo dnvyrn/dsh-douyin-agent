@@ -1,0 +1,3 @@
+# pnpm 11 reads non-registry settings here; older pnpm also has .npmrc.
+# The optional DSH peer is provided by the plugin host.
+autoInstallPeers: false

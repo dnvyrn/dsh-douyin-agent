@@ -14,6 +14,7 @@ const sample = () => ({ state: { video: { id: videoId, time: 5, paused: false } 
 
 function fixture(t, { group = false, allowed = true } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-shared-work-test-'));
+  fs.writeFileSync(path.join(directory, 'friend-interactions-policy.json'), JSON.stringify({ version: 1, enabled: true }));
   const contact = { id: `conv:${'1'.repeat(64)}`, name: '合成许可会话', isGroup: group, followed: !group, identityVerified: true, identityBinding: `binding:${'2'.repeat(64)}`, identityVersion: 2, identityKind: group ? 'rendered-group' : 'rendered-user', identityHash: '1'.repeat(64) };
   const messages = [], sent = [], requests = [], actions = [], captures = [];
   fs.writeFileSync(path.join(directory, 'chat-policy.json'), JSON.stringify({ version: 1, enabled: false, allowlist: [{ ...contact, authorizationKind: group ? 'existing-group' : 'following', verifiedAt: new Date().toISOString() }], dailyReplyLimit: null }));

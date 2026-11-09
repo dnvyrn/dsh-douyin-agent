@@ -12,6 +12,7 @@ const incoming = (id, text) => ({ id, text, sender: 'incoming', eligibleForReply
 const config = { apiKey: '', model: 'synthetic-native-model' };
 function fixture(t, replyProvider) {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-native-reply-')), contacts = [contact(one), contact(two)], sent = [], reads = [];
+  fs.writeFileSync(path.join(stateDir, 'friend-interactions-policy.json'), JSON.stringify({ version: 1, enabled: true }));
   const conversations = Object.fromEntries(contacts.map(item => [item.id, [incoming(`old-${item.id}`, `OLD_BASELINE_${item.id}`)]]));
   const browser = { controller: { source: 'dsh-chat' }, listContacts: async () => ({ contacts }), readConversation: async (id, { allowed }) => { assert.equal(allowed, true); assert.ok(conversations[id]); reads.push(id); return { conversation: { id }, contact: { ...contacts.find(value => value.id === id) }, messages: structuredClone(conversations[id]) }; }, sendMessage: async (id, text, { allowed, signal }) => { signal.throwIfAborted(); assert.equal(allowed, true); sent.push({ id, text }); return { confirmed: true, messageId: `sent-${sent.length}` }; }, close: async () => {} };
   const agent = new ChatAgent({ config, replyProvider, fetchImpl: async () => assert.fail('原生提供器不能走外部API请求'), personaMemory: { snapshot: () => ({ manualText: '合成手编人格：简洁。', personaText: 'PRIVATE_AUTO_PERSONA', interests: [{ topic: 'PRIVATE_INTEREST' }], recentObservations: [{ title: 'PRIVATE_VIDEO' }] }) } });

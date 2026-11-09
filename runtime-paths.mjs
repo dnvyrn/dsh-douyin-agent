@@ -20,8 +20,9 @@ function absolute(value, label) {
 }
 
 // 此处只读可信启动器写入的位置记录，不创建目录，也不迁移已有状态。
-export function resolveRuntimePaths({ env = process.env, home = homedir(), sourceRoot = SOURCE_ROOT, legacyMemoryDbPath = LEGACY_SHARED_MEMORY_DB_PATH } = {}) {
-  const locationFile = absolute(env.DOUYIN_RUNTIME_LOCATION_FILE || path.join(home, '.dsh', 'douyin-browser', 'runtime-location.json'), '运行位置记录');
+export function resolveRuntimePaths({ env = process.env, home = homedir(), sourceRoot = SOURCE_ROOT, platform = process.platform, legacyMemoryDbPath = LEGACY_SHARED_MEMORY_DB_PATH } = {}) {
+  const userRoot = path.join(home, '.dsh', 'douyin-browser');
+  const locationFile = absolute(env.DOUYIN_RUNTIME_LOCATION_FILE || path.join(userRoot, 'runtime-location.json'), '运行位置记录');
   let stored = {};
   try {
     stored = JSON.parse(fs.readFileSync(locationFile, 'utf8'));
@@ -33,10 +34,28 @@ export function resolveRuntimePaths({ env = process.env, home = homedir(), sourc
   } catch (error) {
     if (error.code !== 'ENOENT') throw new Error('运行位置记录无法读取或格式错误；未切换到另一套状态。');
   }
-  const mediaRoot = path.join(sourceRoot, 'media');
-  const selected = (field, fallback) => absolute(env[FIELDS[field]] || stored[field] || fallback, field);
-  const stateDir = selected('stateDir', path.join(sourceRoot, 'state'));
-  const mediaRuntimeRoot = selected('mediaRuntimeRoot', mediaRoot);
+  const legacyMediaRoot = path.join(sourceRoot, 'media');
+  const mediaRoot = platform === 'darwin' ? path.join(userRoot, 'media') : legacyMediaRoot;
+  const configured = field => env[FIELDS[field]] || stored[field];
+  const selected = (field, fallback, legacyPaths = []) => {
+    const explicit = configured(field);
+    if (explicit) return absolute(explicit, field);
+    // Mac 新安装使用用户目录；旧状态必须由用户明确保留或迁移，不能悄悄重置。
+    // 只检查元数据，不打开凭据/状态，不复制仍可能被另一进程使用的数据库。
+    if (platform === 'darwin') for (const legacy of legacyPaths) {
+      try {
+        fs.lstatSync(legacy); // 包括断开的链接；权限错误不能被当成“新安装”。
+      } catch (error) {
+        if (error.code === 'ENOENT') continue;
+        throw new Error(`无法检查旧版 ${field}；未切换到另一套状态。请检查权限并通过运行位置记录或 ${FIELDS[field]} 明确指定位置。`);
+      }
+      throw new Error(`检测到源码目录中的旧版 ${field}；未切换到另一套状态。请先备份，再通过运行位置记录或 ${FIELDS[field]} 明确保留原位置或迁移到用户目录。`);
+    }
+    return absolute(fallback, field);
+  };
+  const legacyStateDir = path.join(sourceRoot, 'state');
+  const stateDir = selected('stateDir', platform === 'darwin' ? path.join(userRoot, 'state') : legacyStateDir, [legacyStateDir]);
+  const mediaRuntimeRoot = selected('mediaRuntimeRoot', mediaRoot, [path.join(legacyMediaRoot, '.venv')]);
   let memoryDbPath;
   if (env.DEEPSEEK_SHARED_MEMORY_DB?.trim()) memoryDbPath = absolute(env.DEEPSEEK_SHARED_MEMORY_DB, '共享记忆数据库');
   else if (stored.memoryDbPath !== undefined) memoryDbPath = absolute(stored.memoryDbPath, '运行位置 memoryDbPath');
@@ -44,16 +63,17 @@ export function resolveRuntimePaths({ env = process.env, home = homedir(), sourc
   else if (path.isAbsolute(legacyMemoryDbPath) && fs.existsSync(legacyMemoryDbPath)) {
     if (!fs.statSync(legacyMemoryDbPath).isFile()) throw new Error('已有共享记忆路径不是文件；未创建另一套数据库。');
     memoryDbPath = path.normalize(legacyMemoryDbPath);
-  } else memoryDbPath = path.join(home, '.dsh', 'douyin-browser', 'memory', 'shared.sqlite');
+  } else memoryDbPath = path.join(userRoot, 'memory', 'shared.sqlite');
   return {
     locationFile, stateDir, memoryDir: path.dirname(memoryDbPath), memoryDbPath,
-    mediaEnvFile: selected('mediaEnvFile', path.join(mediaRoot, '.env')),
-    mediaSettingsFile: selected('mediaSettingsFile', path.join(mediaRoot, 'settings.local.json')),
+    mediaEnvFile: selected('mediaEnvFile', path.join(mediaRoot, '.env'), [path.join(legacyMediaRoot, '.env')]),
+    mediaSettingsFile: selected('mediaSettingsFile', path.join(mediaRoot, 'settings.local.json'), [path.join(legacyMediaRoot, 'settings.local.json')]),
     mediaRuntimeRoot,
-    mediaModelsDir: selected('mediaModelsDir', path.join(mediaRuntimeRoot, '.models')),
+    // 明确指定 runtime root 时，保留模型默认跟随它的原有合同。
+    mediaModelsDir: selected('mediaModelsDir', path.join(mediaRuntimeRoot, '.models'), configured('mediaRuntimeRoot') ? [] : [path.join(legacyMediaRoot, '.models')]),
     mediaCaptureDir: path.join(stateDir, 'media-captures'),
-    browserProfileDir: path.join(home, '.dsh', 'douyin-browser', 'cli-profile'),
-    browserControlDir: path.join(home, '.dsh', 'douyin-browser', 'control'),
+    browserProfileDir: path.join(userRoot, 'cli-profile'),
+    browserControlDir: path.join(userRoot, 'control'),
   };
 }
 
@@ -91,5 +111,5 @@ export function resolveNodeExecutable({ env = process.env, executable = process.
     ...searchPath.split(path.delimiter).map(directory => directory.trim().replace(/^"(.*)"$/, '$1')).filter(directory => path.isAbsolute(directory)).map(directory => path.join(directory, nodeName)),
   ];
   for (const candidate of new Set(candidates)) if (isIndependentNode(candidate, env, executable, versions)) return candidate;
-  throw new Error('未找到独立 Node.js 22.13 或更高版本。请安装 Node.js，或将 DOUYIN_NODE_EXECUTABLE 设置为现有 node.exe 的绝对路径后重试。');
+  throw new Error('未找到独立 Node.js 22.13 或更高版本。请安装 Node.js，或将 DOUYIN_NODE_EXECUTABLE 设置为现有独立 Node 可执行文件的绝对路径后重试。');
 }

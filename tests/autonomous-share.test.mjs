@@ -43,6 +43,7 @@ function fixture(t, options = {}) {
   const videoLimits = new VideoLimits({ stateDir, now: clock });
   videoLimits.savePolicy({ windows: ['00:00-24:00'], sessionMinutes: 60 }, { explicit: true }); videoLimits.markSession('api', { explicit: true });
   const contacts = [nativeFriend, nativeOther].map((nativeId, index) => ({ ...stableContact(nativeId), name: `合成好友${index + 1}`, followed: true, verifiedAt: '2026-10-15T01:00:00Z' }));
+  fs.writeFileSync(path.join(stateDir, 'friend-interactions-policy.json'), JSON.stringify({ version: 1, enabled: true }));
   fs.writeFileSync(path.join(stateDir, 'chat-policy.json'), JSON.stringify({ version: 1, enabled: false, allowlist: contacts }));
   const calls = [];
   const send = options.send || (async (input, controls) => { calls.push({ input, controls }); assert.deepEqual(Object.keys(input).sort(), ['expectedVideoId', 'recipientId']); controls.authorize({ phase: 'prepare', recipientId: input.recipientId, videoId: input.expectedVideoId }); controls.authorize({ phase: 'before-click', recipientId: input.recipientId, videoId: input.expectedVideoId }); return receipt(input.expectedVideoId); });

@@ -68,7 +68,7 @@ function unansweredItems(watermarks,policy){const items=[];for(const contact of 
 function unansweredSnapshot(items){return createHash('sha256').update(items.filter(entry=>isOpenBacklogRecord(entry.item)).map(entry=>entry.recordId).sort().join('\n')).digest('hex');}
 function unansweredPreview(item){const messages=Array.isArray(item?.incoming)?item.incoming:[];const text=messages.find(message=>typeof message?.text==='string'&&message.text.trim());if(text)return{preview:text.text.trim().slice(0,160),previewNote:'本地保留的文字预览，仅用于核对；不会自动补发。'};const kinds=[...new Set(messages.map(messageKind))];return{preview:null,previewNote:kinds.length?`${kinds.join('、')}消息没有可显示的文字正文，未做识别或猜测。`:'本地没有这条消息的可显示内容，未做识别或猜测。'};}
 
-function maintenanceActive(stateDir){try{const value=load(path.join(stateDir,'friend-interactions-policy.json'),{version:1,enabled:true});return value?.version===1&&value.enabled===true&&fs.existsSync(path.join(stateDir,'friend-interactions-settings.guard'));}catch{return false;}}
+function maintenanceActive(stateDir){try{const value=load(path.join(stateDir,'friend-interactions-policy.json'),{version:1,enabled:false});return value?.version===1&&value.enabled===true&&fs.existsSync(path.join(stateDir,'friend-interactions-settings.guard'));}catch{return false;}}
 function revokeError(stateDir,phase){const maintenance=maintenanceActive(stateDir);return Object.assign(new Error(maintenance?'正在维护好友名单，发送已暂缓。':'好友互动开关或回复许可已撤回，未继续发送。'),{code:maintenance?'CHAT_MAINTENANCE_REVOKED':'CHAT_INTERACTIONS_REVOKED',safeBeforeDispatch:phase==='prepare'});}
 function allowMaintenanceRecovery(pending){if(pending?.recoveryEvidence?.beforeDispatch===true){pending.restartAllowed=true;pending.recoveryExpiresAt??=Date.now()+5*60_000;}}
 function archivePending(mark,pending,reason,{handledByUserAt}={}) {
@@ -641,7 +641,7 @@ export class ChatService {
   }
   stop({preservePending=false,reason='user-stop'}={}) {
     this.clearReplyQualifications();
-    if(preservePending){try{const master=load(path.join(this.stateDir,'friend-interactions-policy.json'),{version:1,enabled:true});if(master?.version!==1||master.enabled!==true)preservePending=false;}catch{preservePending=false;}}
+    if(preservePending){try{const master=load(path.join(this.stateDir,'friend-interactions-policy.json'),{version:1,enabled:false});if(master?.version!==1||master.enabled!==true)preservePending=false;}catch{preservePending=false;}}
     if (this.ownershipLost) return this.state();
     const worker = this.worker();
     if (this.runId && worker?.owned !== true) { this.loseOwnership(); return this.state(); }

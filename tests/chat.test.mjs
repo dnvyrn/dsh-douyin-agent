@@ -14,6 +14,7 @@ const contact = { id: `conv:${'1'.repeat(64)}`, name: '合成联系人', followe
 const message = (id, text, sender = 'incoming') => ({ id, text, sender, eligibleForReply: true });
 function fixture(t, options = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-chat-test-'));
+  fs.writeFileSync(path.join(directory, 'friend-interactions-policy.json'), JSON.stringify({ version: 1, enabled: true }));
   const messages = [message('old', '启动前的旧消息，不应回复')]; const sent = []; const inputs = [];
   const browser = { listContacts: async () => ({ contacts: [contact] }), readConversation: async (id, args) => { assert.equal(args.allowed, true); assert.equal(id, contact.id); return { conversation: { id }, contact: { ...contact }, messages: [...messages] }; }, sendMessage: async (id, text, args) => { assert.equal(args.allowed, true); sent.push({ id, text }); return { confirmed: true, messageId: `sent-${sent.length}` }; }, ...options.browser };
   const agent = { replyTokens: 512, reply: async (value) => { inputs.push(value.messages.map((item) => ({ ...item }))); return { text: '[自动回复] 合成测试回复' }; }, ...options.agent };
@@ -152,7 +153,7 @@ test('旧policy的40次限制读取即归一无限，不修改已有计数',asyn
   assert.equal(f.service.state().policy.dailyReplyLimit,null);await f.service.start({schedule:false});
   const date=f.service.state().daily.date;f.service.watermarks.days[date]=201;f.service.persist();f.messages.push(message('after-legacy-cap','合成旧限制迁移后新消息'));await f.service.poll();assert.equal(f.sent.length,1);assert.equal(f.service.state().daily.requests,202);
 });
-test('好友互动总开关默认开启，关闭后停止轮询且拒绝重新启动',async t=>{
+test('好友互动总开关显式开启后，关闭会停止轮询且拒绝重新启动',async t=>{
   const f=fixture(t);assert.equal(readFriendInteractionsEnabled(f.directory),true);await prepare(f);f.messages.push(message('new','合成未处理消息'));
   fs.writeFileSync(path.join(f.directory,'friend-interactions-policy.json'),JSON.stringify({version:1,enabled:false}));await f.service.poll();assert.equal(f.inputs.length,0);assert.equal(f.sent.length,0);assert.equal(f.service.state().running,false);
   await assert.rejects(f.service.start({schedule:false}),/总开关/);

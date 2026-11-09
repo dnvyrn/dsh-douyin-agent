@@ -22,6 +22,7 @@ function fixture(t, options = {}) {
   const personaMemory = new PersonaMemory({ memoryDir: path.join(root, 'memory'), legacyRoleCardFile: path.join(root, 'no-legacy.md'), clock: nowFn });
   const videoLimits = new VideoLimits({ stateDir, now: nowFn }); videoLimits.savePolicy({ windows: ['00:00-24:00'], sessionMinutes: 10 }, { explicit: true });
   fs.writeFileSync(path.join(stateDir, 'chat-policy.json'), JSON.stringify({ allowlist: [{ id: recipientId, name: '合成好友甲', followed: true, isGroup: false, verifiedAt: '2026-10-15T01:00:00Z', identityVersion: 2, identityKind: 'rendered-user', identityHash: 'a'.repeat(64), identityVerified: true, identityBinding: 'binding:' + 'b'.repeat(64) }] }));
+  fs.writeFileSync(path.join(stateDir, 'friend-interactions-policy.json'), JSON.stringify({ version: 1, enabled: true }));
   const current = () => { const value = state(id, time, options.duration || 10); value.video.paused = playbackPaused; return value; }, actions = [], requests = [], sends = [], delays = [], events = [], queue = options.decisions || [decision('stop')];
   let pauses = 0, watch;
   const advancePlayback=ms=>{for(let remaining=ms;remaining>0;){const step=Math.min(1000,remaining);now+=step;time+=step/1000;videoLimits.notePlayback(source,current(),{ownerId:watch?.runId||source});remaining-=step;}};

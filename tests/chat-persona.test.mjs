@@ -43,6 +43,7 @@ test('会话显示名最多200个Unicode字符，格式不合法时不调用模�
 
 test('服务只把当前强身份核对后的显示名和类型交模型，不带稳定ID、头像或其他联系人', async t => {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-chat-persona-'));
+  fs.writeFileSync(path.join(directory, 'friend-interactions-policy.json'), JSON.stringify({ version: 1, enabled: true }));
   const contact = { id: `conv:${'a'.repeat(64)}`, name: '合成许可昵称', followed: true, isGroup: false, identityVerified: true, identityVersion: 2, identityKind: 'rendered-user', identityHash: 'a'.repeat(64), identityBinding: `binding:${'b'.repeat(64)}`, avatarRef: 'PRIVATE_AVATAR', otherContact: 'PRIVATE_OTHER_PERSON' };
   const messages = [{ id: 'old', sender: 'incoming', text: '合成基线', eligibleForReply: false }]; let request, sent = 0;
   const browser = { listContacts: async () => ({ contacts: [structuredClone(contact)] }), readConversation: async () => ({ conversation: { id: contact.id, isGroup: false }, contact: structuredClone(contact), messages: structuredClone(messages) }), sendMessage: async () => { sent++; assert.fail('此用例只能到模型前，不得发送。'); } };

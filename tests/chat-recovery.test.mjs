@@ -7,6 +7,7 @@ import {ChatService} from '../chat-service.mjs';
 const incoming=(id,text)=>({id,text,sender:'incoming',eligibleForReply:true,arrivalClassification:'new-tail'});
 function fixture(t,{blockModel=true}={}){
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'douyin-chat-recovery-'));const contact={id:`conv:${'a'.repeat(64)}`,name:'合成恢复联系人',followed:null,relationshipStatus:'unavailable',isGroup:false,identityVerified:true,identityBinding:`binding:${'b'.repeat(64)}`,identityVersion:2,identityKind:'rendered-user',identityHash:'a'.repeat(64)};
+  fs.writeFileSync(path.join(directory,'friend-interactions-policy.json'),JSON.stringify({version:1,enabled:true}));
   const messages=[incoming('old','合成旧基线')],sent=[],requests=[],entered=Promise.withResolvers();let calls=0;
   const browser={listContacts:async()=>({contacts:[structuredClone(contact)]}),readConversation:async()=>({conversation:{id:contact.id,isGroup:false},contact:structuredClone(contact),messages:structuredClone(messages)}),sendMessage:async(id,text,{signal})=>{signal.throwIfAborted();sent.push({id,text});return{confirmed:true,messageId:`sent-${sent.length}`};}};
   const agent={replyTokens:512,reply:async value=>{requests.push({...value,messages:structuredClone(value.messages)});calls++;if(blockModel&&calls===1){entered.resolve();return new Promise((resolve,reject)=>value.signal.addEventListener('abort',()=>reject(value.signal.reason),{once:true}));}return{text:'合成恢复回复'};}};
@@ -15,6 +16,13 @@ function fixture(t,{blockModel=true}={}){
   return{directory,contact,messages,sent,requests,entered,browser,agent,service,other:()=>{const other=new ChatService(options);instances.push(other);return other;}};
 }
 async function start(f){await f.service.configure({recipientIds:[f.contact.id],allowConversationOnly:true});await f.service.start({schedule:false});}
+// The cross-entry stop is observed by an unref'ed owner heartbeat. Keep only
+// this expected operation alive, and fail rather than hang if it never arrives.
+async function waitForCrossEntryStop(polling) {
+  let timer;
+  try { await Promise.race([polling, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('跨入口停止未在五秒内完成。')), 5000); })]); }
+  finally { clearTimeout(timer); }
+}
 async function interrupt(f,preservePending=true){f.messages.push(incoming('known-new','合成已核对新问题'));const polling=f.service.poll();await f.entered.promise;f.service.stop({preservePending,reason:preservePending?'settings-update':'user-stop'});await polling;}
 
 test('名单维护恢复已合格且未发送的消息，不删除seen、不伪造baseline资格，不重复上下文',async t=>{
@@ -91,7 +99,7 @@ test('正常取消无待答的只读检查不谎报有未答消息或暂停联�
 });
 
 test('跨入口维护停止保留恢复参数，owner结束后另一个入口可核对恢复',async t=>{
-  const f=fixture(t);await start(f);f.messages.push(incoming('known-new','合成跨入口新问题'));const polling=f.service.poll();await f.entered.promise;const other=f.other();assert.equal(other.stop({preservePending:true,reason:'settings-update'}).stopping,true);await polling;assert.equal(other.state().recovery.recoverableCount,1);await other.start({schedule:false});await other.poll();assert.equal(f.sent.length,1);assert.equal(f.requests.length,2);
+  const f=fixture(t);await start(f);f.messages.push(incoming('known-new','合成跨入口新问题'));const polling=f.service.poll();await f.entered.promise;const other=f.other();assert.equal(other.stop({preservePending:true,reason:'settings-update'}).stopping,true);await waitForCrossEntryStop(polling);assert.equal(other.state().recovery.recoverableCount,1);await other.start({schedule:false});await other.poll();assert.equal(f.sent.length,1);assert.equal(f.requests.length,2);
 });
 
 test('进入发送适配器后的中断进入自动读回，重启可接新消息但不能盲重发',async t=>{

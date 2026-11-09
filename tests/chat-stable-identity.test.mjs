@@ -13,6 +13,7 @@ const incoming = (id, text) => ({ id, text, sender: 'incoming', eligibleForReply
 
 function fixture(t, initial = stable(), { blockModel = false } = {}) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-chat-stable-'));
+  fs.writeFileSync(path.join(directory, 'friend-interactions-policy.json'), JSON.stringify({ version: 1, enabled: true }));
   const contact = structuredClone(initial), messages = [incoming('old', '合成启动前消息')], sent = [], inputs = [], reads = [], entered = Promise.withResolvers();
   let calls = 0;
   const browser = {

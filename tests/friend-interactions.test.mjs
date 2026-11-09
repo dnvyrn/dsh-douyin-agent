@@ -36,12 +36,18 @@ test('另一入口恢复真实worker后清除旧等待原因，原入口不重�
   } finally { await other.close(); }
 });
 
-test('缺少总开关记录时沿用默认开启，仍只重用原许可名单启动一次', async t => {
-  const f = fixture(t, { missingPolicy: true }); assert.equal(f.coordinator.state().policy.enabled, true);
+test('缺少总开关记录时默认关闭，已有名单也必须本人明确开启', async t => {
+  const f = fixture(t, { missingPolicy: true }); assert.equal(f.coordinator.state().policy.enabled, false);
   assert.equal(fs.existsSync(f.coordinator.policyFile), false);
   await f.coordinator.reconcile(); await f.coordinator.reconcile();
-  assert.deepEqual(f.calls, ['share.true', 'chat.start']); assert.equal(f.coordinator.state().status, 'running');
+  assert.equal(f.calls.includes('chat.start'), false);
+  assert.equal(f.calls.includes('share.true'), false);
+  assert.equal(f.coordinator.state().status, 'disabled');
   assert.deepEqual(f.current.policy.allowlist, [{ id: 'synthetic-original' }]);
+  await assert.rejects(f.coordinator.configure({ enabled: true }), /本人/);
+  await f.coordinator.configure({ enabled: true }, { explicit: true });
+  assert.equal(f.coordinator.state().enabled, true);
+  assert.equal(f.calls.filter(value => value === 'chat.start').length, 1);
 });
 
 test('前台退避期间重复检查不再次启动，显式关闭仍立即生效', async t => {

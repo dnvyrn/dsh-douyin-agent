@@ -21,6 +21,7 @@ function fixture(t,{source='api',decisions,sendMode={},afterSend}={}){
   const clock=()=>now,events=[],sent=[],actions=[],requests=[],progress=[],queue=[...decisions];
   const videoLimits=new VideoLimits({stateDir,now:clock});videoLimits.savePolicy({windows:['00:00-24:00'],sessionMinutes:10},{explicit:true});
   const contacts=ids.map((id,index)=>({id,name:`合成好友${index}`,isGroup:false,followed:true,verifiedAt:'2026-10-15T01:00:00Z',identityVersion:2,identityKind:'rendered-user',identityHash:id.slice(5),identityBinding:'binding:'+hash('绑定'+index),identityVerified:true}));
+  fs.writeFileSync(path.join(stateDir,'friend-interactions-policy.json'),JSON.stringify({version:1,enabled:true}));
   fs.writeFileSync(path.join(stateDir,'chat-policy.json'),JSON.stringify({allowlist:contacts}));
   const personaMemory=new PersonaMemory({memoryDir:path.join(root,'memory'),legacyRoleCardFile:path.join(root,'none'),clock});
   const state=()=>({url:`https://www.douyin.com/video/${videoId}`,loginRequired:false,verificationRequired:false,privateChatVisible:false,video:{id:videoId,url:`https://www.douyin.com/video/${videoId}`,time,duration:100,paused:false,readyState:4,title:'合成作品',author:'合成作者'}});

@@ -16,6 +16,8 @@ const write = (file, value) => fs.writeFileSync(file, JSON.stringify(value, null
 
 async function fixture(t, { enabled = true, recovery = false, isGroup = false } = {}) {
   const stateDir = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-chat-share-isolation-'));
+  // The master opt-in is independent of the per-feature share policy below.
+  write(path.join(stateDir, 'friend-interactions-policy.json'), { version: 1, enabled: true });
   const contact = structuredClone(isGroup ? group : direct), rows = [incoming('old-baseline', '启动前的合成旧消息')], calls = { share: 0, model: 0, videoLimits: 0, prepares: 0, sent: [] };
   let current = structuredClone(contact), listed = true;
   const browser = {

@@ -74,6 +74,7 @@ test('内部采样模式不接受工具伪造，资源创建取消后的迟到�
 
 test('真实服务保留宿主跨loop三帧，模型接收全部画面和有界真实时长声明', async t => {
   assert.ok(issuedSample); const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-shared-proof-service-'));
+  fs.writeFileSync(path.join(directory, 'friend-interactions-policy.json'), JSON.stringify({ version: 1, enabled: true }));
   const contact = { id: `conv:${'1'.repeat(64)}`, name: '合成许可群', followed: false, isGroup: true, identityVerified: true, identityBinding: `binding:${'2'.repeat(64)}`, identityVersion: 2, identityKind: 'rendered-group', identityHash: '1'.repeat(64) };
   const rows = [], sent = [], requests = [], memberId = `member:${'4'.repeat(64)}`;
   const browser = { listContacts: async () => ({ contacts: [structuredClone(contact)] }), readConversation: async () => ({ contact: structuredClone(contact), conversation: { id: contact.id, isGroup: true }, messages: structuredClone(rows) }), sendMessage: async (id, text) => { sent.push(text); return { confirmed: true, messageId: 'synthetic-sent' }; }, captureMessage: async (id, messageId) => ({ messageId, frames: [{ mimeType: 'image/png', data: pixel }], media: { type: 'shared-work' } }), openSharedVideo: async () => ({ url: 'https://www.douyin.com/video/12345', videoId: '12345', opened: false }) };

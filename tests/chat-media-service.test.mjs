@@ -11,6 +11,7 @@ const pixel='iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwM
 const incoming=(id,extra={})=>({id,sender:'incoming',text:'',eligibleForReply:true,...extra});
 function fixture(t,{group=false,settings={enabled:true,backend:'local-whisper'},status,transcription}={}) {
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'douyin-chat-media-test-'));
+  fs.writeFileSync(path.join(directory,'friend-interactions-policy.json'),JSON.stringify({version:1,enabled:true}));
   const contact={id:`conv:${'1'.repeat(64)}`,name:'合成媒体联系人',followed:true,isGroup:group,identityVerified:true,identityBinding:`binding:${'2'.repeat(64)}`,identityVersion:2,identityKind:group?'rendered-group':'rendered-user',identityHash:'1'.repeat(64)};
   const messages=[incoming('old',{text:'启动前旧消息'})],requests=[],sent=[],transcriptions=[],released=[];
   const captureId=`voice:${'3'.repeat(64)}`,audioPath=path.join(directory,'single-message.wav');

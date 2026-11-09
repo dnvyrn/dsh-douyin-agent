@@ -101,6 +101,7 @@ test('模型入参同时包含正文、引用和附件，不泄漏资源地址�
 
 function serviceFixture(t, group = false) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-chat-parity-'));
+  fs.writeFileSync(path.join(directory, 'friend-interactions-policy.json'), JSON.stringify({ version: 1, enabled: true }));
   const contact = { id: 'conv:' + '1'.repeat(64), name: '合成许可会话', followed: true, isGroup: group, identityVerified: true, identityBinding: 'binding:' + '2'.repeat(64), identityVersion: 2, identityKind: group ? 'rendered-group' : 'rendered-user', identityHash: '1'.repeat(64) };
   const messages = [{ id: 'old', sender: 'incoming', text: '合成基线' }], sent = [], inputs = [];
   const adapter = { listContacts: async () => ({ contacts: [contact] }), readConversation: async () => ({ conversation: { id: contact.id, isGroup: group }, contact, messages: structuredClone(messages) }), sendMessage: async (_id, text) => { sent.push(text); return { confirmed: true, messageId: 'sent-' + sent.length }; } };

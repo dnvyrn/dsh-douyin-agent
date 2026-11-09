@@ -10,6 +10,7 @@ import {MessageIdentityTracker} from '../message-tracker.mjs';
 for(const isGroup of [false,true])for(const scenario of ['时段外','观看预算耗尽']){
  test('普通'+(isGroup?'群@':'私信')+'在'+scenario+'仍正常回复，视频限制和聊天许可分别生效',async t=>{
   const directory=fs.mkdtempSync(path.join(os.tmpdir(),'douyin-chat-all-day-'));
+  fs.writeFileSync(path.join(directory,'friend-interactions-policy.json'),JSON.stringify({version:1,enabled:true}));
   const limits=new VideoLimits({stateDir:directory,now:()=>Date.parse(scenario==='时段外'?'2026-10-28T04:00:00Z':'2026-10-28T12:00:00Z')});
   limits.savePolicy({...limits.policy(),enabled:true,windows:['18:00-24:00'],dailyMinutes:1,dailyRequests:1},{explicit:true});
   if(scenario==='观看预算耗尽'){const started=limits.markSession('api',{explicit:true});limits.reserveRequest({source:'api',sessionId:started.session.id});}

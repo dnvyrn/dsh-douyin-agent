@@ -4,7 +4,9 @@ import { randomUUID } from 'node:crypto';
 import { resolveRuntimePaths } from './runtime-paths.mjs';
 import { acquireFriendInteractionDispatch } from './friend-interactions-guard.mjs';
 
-const defaults = () => ({ version: 1, enabled: true });
+// Fork safety default: fresh installs require an explicit opt-in. Persisted
+// policies remain authoritative; never silently enable outbound interaction.
+const defaults = () => ({ version: 1, enabled: false });
 const fail = (message, status = 409) => Object.assign(new Error(message), { status });
 const active = value => Boolean(value?.running || value?.starting || value?.busy || value?.worker?.alive);
 const workerKey = value => value?.worker ? `${value.worker.pid}:${value.worker.runId}` : active(value) ? 'local-active' : '';

@@ -16,6 +16,7 @@ const incoming = (id, text, extra = {}) => ({ id, text, sender: 'incoming', elig
 
 function fixture(t, values = [contact('合成个人')]) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-chat-permissions-'));
+  fs.writeFileSync(path.join(directory, 'friend-interactions-policy.json'), JSON.stringify({ version: 1, enabled: true }));
   const contacts = structuredClone(values), messages = new Map(contacts.map(value => [value.id, [incoming('baseline-old', '旧消息里提到大肥鱼也不能补发')]]));
   const inputs = [], sent = [], reads = [];
   const browser = {

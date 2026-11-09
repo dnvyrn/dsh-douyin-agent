@@ -21,6 +21,7 @@ const second = contact('3', '4', '合成好友乙');
 
 function fixture(t, unreadCounts) {
   const directory = fs.mkdtempSync(path.join(os.tmpdir(), 'douyin-chat-unread-'));
+  fs.writeFileSync(path.join(directory, 'friend-interactions-policy.json'), JSON.stringify({ version: 1, enabled: true }));
   const reads = [];
   const browser = {
     listContacts: async () => ({ contacts: [first, second] }),
