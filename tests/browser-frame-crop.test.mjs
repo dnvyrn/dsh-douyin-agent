@@ -28,7 +28,7 @@ test('裁剪到播放器区域并保留设备像素比换算', () => {
 });
 
 test('视网膜截图按 CSS 像素比例换算，不越界', () => {
-  const cropped = cropJpeg(image(2560, 1440), { x: 100, y: 50, width: 400, height: 300, viewportWidth: 1280, viewportHeight: 720 });
+  const cropped = cropJpeg(image(2560, 1440), { x: 100, y: 50, width: 400, height: 300, viewportWidth: 1280, viewportHeight: 720 }, { maxWidth: 0 });
   assert.equal(cropped.width, 800);
   assert.equal(cropped.height, 600);
 });
@@ -44,4 +44,14 @@ test('超出画面、过小区域与不可解码内容都拒绝', () => {
 test('超过单帧字节上限时丢弃，而不是把大图交给模型', () => {
   const source = image(2560, 1440);
   assert.throws(() => cropJpeg(source, { x: 0, y: 0, width: 1280, height: 720, viewportWidth: 2560, viewportHeight: 1440 }, { maxBytes: 1_000 }), error => error.code === BACKEND_CODES.FRAME_UNUSABLE);
+});
+
+test('默认把 Retina 大图收敛到 720 宽并保持比例', () => {
+  const cropped = cropJpeg(image(2136, 2206), { x: 0, y: 0, width: 2136, height: 2206, viewportWidth: 2136, viewportHeight: 2206 });
+  assert.equal(cropped.width, 720);
+  assert.equal(cropped.height, 744);
+  const full = cropJpeg(image(2136, 2206), { x: 0, y: 0, width: 2136, height: 2206, viewportWidth: 2136, viewportHeight: 2206 }, { maxWidth: 0 });
+  assert.ok(cropped.bytes < full.bytes, `降采样后应更小：${cropped.bytes} vs ${full.bytes}`);
+  const small = cropJpeg(image(640, 360), { x: 0, y: 0, width: 640, height: 360, viewportWidth: 640, viewportHeight: 360 });
+  assert.equal(small.width, 640, '小图不应被放大');
 });

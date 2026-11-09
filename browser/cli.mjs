@@ -11,7 +11,8 @@ const USAGE = `用法：
   node browser/cli.mjs observe --seconds 3 --frames 4 [--out 目录]
   node browser/cli.mjs next --expect <作品ID>
   node browser/cli.mjs search --query "关键词"
-可选：--chrome <Chrome 可执行文件> 复用已安装的浏览器，--binary <agent-browser 路径>
+可选：--chrome <Chrome 可执行文件> 复用已安装的浏览器，--binary <agent-browser 路径>，--close true 结束时关闭窗口
+      关闭请用：node browser/cli.mjs close
 说明：默认打开有头窗口；登录与人机验证由本人完成。本命令不点赞、不评论、不关注、不发布。`;
 
 function parse(argv) {
@@ -38,9 +39,10 @@ function summarize(bundle) {
 async function main() {
   const { command, options } = parse(process.argv.slice(2));
   if (!command || command === '--help' || command === '-h') { process.stdout.write(`${USAGE}\n`); return; }
-  if (!['open', 'status', 'observe', 'next', 'search'].includes(command)) throw Object.assign(new Error(`未知命令：${command}`), { code: 'INVALID_ARGUMENT' });
+  if (!['open', 'status', 'observe', 'next', 'search', 'close'].includes(command)) throw Object.assign(new Error(`未知命令：${command}`), { code: 'INVALID_ARGUMENT' });
   const session = createReadOnlyObserver({ executablePath: options.chrome, binary: options.binary });
   try {
+    if (command === 'close') { await session.close(); process.stdout.write('{"closed":true}\n'); return; }
     if (command === 'open') process.stdout.write(`${JSON.stringify(await session.open({ url: options.url }), null, 2)}\n`);
     if (command === 'status') process.stdout.write(`${JSON.stringify(await session.status(), null, 2)}\n`);
     if (command === 'search') process.stdout.write(`${JSON.stringify(await session.search({ query: options.query }), null, 2)}\n`);
@@ -54,7 +56,7 @@ async function main() {
       }
       process.stdout.write(`${JSON.stringify({ ...summarize(bundle), savedTo: options.out ? path.resolve(options.out) : null }, null, 2)}\n`);
     }
-  } finally { await session.close(); }
+  } finally { if (options.close === 'true') await session.close(); }
 }
 
 main().catch(error => {

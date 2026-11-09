@@ -138,8 +138,8 @@ test('换片成功需要作品标识真实变化并就绪', async t => {
 test('换片未确认时只报错，不重复点击', async t => {
   const f = fixture(t);
   await assert.rejects(f.session.next({ expectedVideoId: VIDEO_ID }), error => error.code === BACKEND_CODES.SWITCH_NOT_CONFIRMED && error.beforeVideoId === VIDEO_ID);
-  assert.equal(f.calls.filter(call => call[0] === 'click').length, 1);
-  assert.equal(f.calls.filter(call => call[0] === 'mouseWheel').length, 0);
+  assert.equal(f.calls.filter(call => call[0] === 'click').length, 1, '不重复点击');
+  assert.ok(f.calls.filter(call => call[0] === 'mouseWheel').length <= 1, '最多补一次滚轮');
 });
 
 test('换片命令超时视为结果未知，绝不重试', async t => {
@@ -156,7 +156,7 @@ test('新作品标识已变但未就绪时返回明确错误码', async t => {
 test('箭头不可点时退化为播放器区域滚轮，仍然只在一个写操作内', async t => {
   const f = fixture(t, { clickImpl: () => { throw Object.assign(new Error('not clickable'), { code: BACKEND_CODES.FAILED }); } });
   await assert.rejects(f.session.next({ expectedVideoId: VIDEO_ID }), error => error.code === BACKEND_CODES.SWITCH_NOT_CONFIRMED);
-  assert.deepEqual(f.calls.filter(call => ['mouseMove', 'mouseWheel'].includes(call[0])), [['mouseMove', 360, 260], ['mouseWheel', 700]]);
+  assert.deepEqual(f.calls.filter(call => ['mouseMove', 'mouseWheel'].includes(call[0])), [['mouseMove', 360, 260], ['mouseWheel', 700]], '点击失败后只补一次滚轮');
 });
 
 test('同一会话并发写操作被拒绝', async t => {
@@ -189,4 +189,19 @@ test('导航限制在抖音 https 域内', async t => {
   const result = await f.session.open({ url: 'https://www.douyin.com/' });
   assert.equal(result.state.documentReadyState, 'complete');
   assert.deepEqual(f.calls.find(call => call[0] === 'open'), ['open', 'https://www.douyin.com/']);
+});
+
+test('短视频循环时按时间跨度计算覆盖，并标记 looped', async t => {
+  const f = fixture(t, { afterScreenshot: (count, page) => { page.state.video.time = count === 1 ? 6.5 : 1.2; } });
+  const bundle = await f.session.observe({ seconds: 3, maxFrames: 3 });
+  assert.equal(bundle.coverage.looped, true);
+  assert.ok(bundle.coverage.coveredSeconds > 0);
+  assert.equal(bundle.coverage.complete, true);
+});
+
+test('搜索结果晚于 complete 渲染时才返回，空列表不冒充无结果', async t => {
+  const f = fixture(t, { afterEval: (count, page) => { if (count >= 3) page.state.searchResults = [{ index: 0, id: '7579432563794584001', url: 'https://www.douyin.com/video/7579432563794584001', title: '合成结果', author: null }]; } });
+  const result = await f.session.search({ query: '科普' });
+  assert.equal(result.results.length, 1);
+  assert.equal(result.note, null);
 });

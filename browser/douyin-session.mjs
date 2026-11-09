@@ -3,7 +3,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { setTimeout as delay } from 'node:timers/promises';
 import { readPageState } from '../page-state.mjs';
-import { BACKEND_CODES, fail, normalizeState, assertObservable, assertReadyToPlay, assertVideoId, assertQuery, boundedText } from './contract.mjs';
+import { BACKEND_CODES, fail, normalizeState, assertObservable, assertReadable, assertReadyToPlay, assertVideoId, assertQuery, boundedText } from './contract.mjs';
 import { cropJpeg } from './frame-crop.mjs';
 
 const NEXT_SELECTOR = '[data-e2e="video-switch-next-arrow"]';
@@ -37,14 +37,14 @@ export class DouyinSession {
   }
 
   async status({ signal } = {}) {
-    return assertObservable(normalizeState(await this.#cli.eval(stateScript, { signal })));
+    return assertReadable(normalizeState(await this.#cli.eval(stateScript, { signal })));
   }
 
   async observe({ seconds = 3, maxFrames = 4, signal } = {}) {
     if (typeof seconds !== 'number' || !Number.isFinite(seconds) || seconds < 0.5 || seconds > 10) fail(BACKEND_CODES.INVALID_INPUT, '观察时长须在 0.5–10 秒之间。');
     if (!Number.isSafeInteger(maxFrames) || maxFrames < 1 || maxFrames > 6) fail(BACKEND_CODES.INVALID_INPUT, '画面帧数须为 1–6 的整数。');
     return this.#exclusive(async () => {
-      const first = assertReadyToPlay(await this.status({ signal }));
+      const first = assertReadyToPlay(assertObservable(await this.status({ signal })));
       const videoId = first.video.id, startedAt = this.#now(), frames = [], notes = [];
       const interval = clamp(Math.round((seconds * 1000) / maxFrames), 200, 2_000);
       let lastState = first, totalBytes = 0, truncated = false, paused = false;
@@ -70,7 +70,9 @@ export class DouyinSession {
       const after = await this.#cli.eval(stateScript, { signal }).then(normalizeState).catch(error => { if (signal?.aborted) throw error; return lastState; });
       if (after.video?.id && after.video.id !== videoId) fail(BACKEND_CODES.VIDEO_CHANGED, '观察结束时作品已变化，本次证据作废，请重新观察。', { framesCaptured: frames.length });
       const times = frames.map(frame => frame.time).filter(value => typeof value === 'number');
-      const coveredSeconds = frames.length > 1 && times.length > 1 ? Math.max(0, times[times.length - 1] - times[0]) : 0;
+      const looped = times.length > 1 && times[times.length - 1] < times[0];
+      // 短视频可能循环；覆盖范围按区间跨度算，不能因末帧回绕就当没看到内容。
+      const coveredSeconds = times.length > 1 ? Math.max(...times) - Math.min(...times) : 0;
       return {
         observationId: randomUUID(),
         videoId,
@@ -81,7 +83,7 @@ export class DouyinSession {
         frames,
         coverage: {
           requestedSeconds: seconds, sampledFrames: frames.length, videoTimeFrom: times[0] ?? null, videoTimeTo: times[times.length - 1] ?? null,
-          coveredSeconds, complete: !truncated && !paused && frames.length > 0,
+          coveredSeconds, looped, complete: !truncated && !paused && frames.length > 0,
         },
         notes,
       };
@@ -114,6 +116,7 @@ export class DouyinSession {
       if (expectedVideoId !== undefined && expectedVideoId !== beforeId) fail(BACKEND_CODES.IDENTITY_MISMATCH, '当前作品与预期不一致，未执行换片。', { expectedVideoId, actualVideoId: beforeId });
       const selector = direction > 0 ? NEXT_SELECTOR : PREVIOUS_SELECTOR;
       const beforeAt = this.#now(), deadline = beforeAt + this.#switchTimeoutMs;
+      let wheelTried = false;
       try {
         await this.#cli.click(selector, { signal });
       } catch (error) {
@@ -124,9 +127,17 @@ export class DouyinSession {
         if (!center) fail(BACKEND_CODES.SWITCH_NOT_CONFIRMED, '换片控件不可用且播放器区域未知，未执行换片。', { beforeVideoId: beforeId });
         await this.#cli.mouseMove(Math.round(center.x + center.width / 2), Math.round(center.y + center.height / 2), { signal });
         await this.#cli.mouseWheel(direction * 700, { signal });
+        wheelTried = true;
       }
       let last = before;
+      const pointer = before.video.viewport;
       for (;;) {
+        // 箭头点击可能被浮层吞掉；未变化时补一次滚轮，仍然只执行一次。
+        if (!wheelTried && pointer && this.#now() - beforeAt >= 2_000 && (!last.video?.id || last.video.id === beforeId)) {
+          wheelTried = true;
+          await this.#cli.mouseMove(Math.round(pointer.x + pointer.width / 2), Math.round(pointer.y + pointer.height / 2), { signal });
+          await this.#cli.mouseWheel(direction * 700, { signal });
+        }
         if (this.#now() >= deadline) {
           if (last.video?.id && last.video.id !== beforeId) fail(BACKEND_CODES.SWITCH_NOT_READY, '已换片但新作品未就绪，未继续播放。', { beforeVideoId: beforeId, afterVideoId: last.video.id, readyState: last.video.readyState });
           fail(BACKEND_CODES.SWITCH_NOT_CONFIRMED, '换片后作品未发生变化，未重复执行。', { beforeVideoId: beforeId, waitedMs: this.#switchTimeoutMs });
@@ -154,7 +165,8 @@ export class DouyinSession {
       for (;;) {
         last = normalizeState(await this.#cli.eval(stateScript, { signal }));
         if (last.unsupportedPage) fail(BACKEND_CODES.NOT_DOUYIN, '导航后标签页不在抖音。');
-        if (last.documentReadyState === 'complete' || last.loginRequired || last.verificationRequired) break;
+        // complete 只说明文档解析完，推荐流播放器往往稍后才挂载。
+        if (last.video || last.pageKind === 'search' || last.loginRequired || last.verificationRequired) break;
         if (this.#now() >= deadline) break;
         await this.#sleep(this.#pollMs, undefined, { signal });
       }
@@ -169,17 +181,19 @@ export class DouyinSession {
       const startedAt = this.#now(), deadline = startedAt + timeoutMs;
       await this.#cli.open(url, { signal });
       let last = null;
+      // 搜索页是 SPA：documentReadyState=complete 之后卡片还要再渲染，必须等结果或超时。
       for (;;) {
         last = normalizeState(await this.#cli.eval(stateScript, { signal }));
         if (last.unsupportedPage) fail(BACKEND_CODES.NOT_DOUYIN, '搜索后标签页不在抖音。');
-        if (last.pageKind === 'search' && (last.searchResults.length > 0 || last.documentReadyState === 'complete')) break;
+        if (last.loginRequired || last.verificationRequired) fail(BACKEND_CODES.NEEDS_USER, '搜索页要求登录或人机验证，未读取结果。');
+        if (last.searchResults.length > 0) break;
         if (this.#now() >= deadline) break;
         await this.#sleep(this.#pollMs, undefined, { signal });
       }
       return {
         query: keyword, url: last?.url ?? url, elapsedMs: this.#now() - startedAt,
         results: last?.searchResults ?? [],
-        note: (last?.searchResults?.length ?? 0) ? null : '未读到可核实的结果卡片；不把空列表当成“没有相关作品”。',
+        note: (last?.searchResults?.length ?? 0) ? null : `等待 ${timeoutMs}ms 仍未读到可核实的结果卡片；不把空列表当成“没有相关作品”。`,
       };
     });
   }

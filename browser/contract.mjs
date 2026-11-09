@@ -65,6 +65,9 @@ const finite = value => typeof value === 'number' && Number.isFinite(value);
 export function normalizeState(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) fail(BACKEND_CODES.BAD_JSON, '页面状态不是对象。');
   const video = raw.video && typeof raw.video === 'object' && !Array.isArray(raw.video) ? raw.video : null;
+  // 直播预览/浮层播放时，ID 可能只来自地址栏，且没有真实时长；此时不能把画面记到该作品名下。
+  // 直播/浮层播放通常没有时长；若 ID 又不来自播放器本身，就无法证明画面属于该作品。
+  const unverifiedPlayback = Boolean(video?.id && !(typeof video.duration === 'number' && video.duration > 0) && ['location', 'link', null].includes(video.idSource ?? null));
   const viewport = video?.viewport && typeof video.viewport === 'object' ? video.viewport : null;
   const boundedViewport = viewport && ['x', 'y', 'width', 'height'].every(key => finite(viewport[key]) && viewport[key] >= 0)
     ? { x: viewport.x, y: viewport.y, width: viewport.width, height: viewport.height } : null;
@@ -81,13 +84,14 @@ export function normalizeState(raw) {
     pageViewport: raw.pageViewport && finite(raw.pageViewport.width) && finite(raw.pageViewport.height) && raw.pageViewport.width > 0 && raw.pageViewport.height > 0
       ? { width: raw.pageViewport.width, height: raw.pageViewport.height } : null,
     livePreview: raw.livePreview?.recognized === true ? { recognized: true } : null,
-    videoSelection: selection ? {
-      candidateCount: Number.isSafeInteger(selection.candidateCount) && selection.candidateCount >= 0 ? selection.candidateCount : null,
-      ambiguous: selection.ambiguous === true,
-      identityConflict: selection.identityConflict === true,
+    videoSelection: selection || unverifiedPlayback ? {
+      candidateCount: Number.isSafeInteger(selection?.candidateCount) && selection.candidateCount >= 0 ? selection.candidateCount : null,
+      ambiguous: selection?.ambiguous === true,
+      identityConflict: selection?.identityConflict === true || unverifiedPlayback,
     } : null,
     video: video ? {
       id: typeof video.id === 'string' && /^\d{1,64}$/.test(video.id) ? video.id : null,
+      idSource: ['player', 'container', 'link', 'location'].includes(video.idSource) ? video.idSource : null,
       url: typeof video.url === 'string' ? video.url : null,
       title: boundedText(video.title, 1000),
       author: boundedText(video.author, 256),
@@ -110,12 +114,18 @@ export function normalizeState(raw) {
   };
 }
 
+// 只读状态：搜索页、推荐页也可能没有活动播放器，但登录/验证/私信仍要拒绝。
+export function assertReadable(state) {
+  if (state.unsupportedPage) fail(BACKEND_CODES.NOT_DOUYIN, '当前标签页不在抖音，未读取页面内容。');
+  if (state.loginRequired) fail(BACKEND_CODES.NEEDS_USER, '页面要求登录，请本人手动登录后再操作。');
+  if (state.verificationRequired) fail(BACKEND_CODES.NEEDS_USER, '页面要求人机验证，请本人处理后再操作。');
+  if (state.privateChatVisible) fail(BACKEND_CODES.PRIVATE_AREA, '当前可见私信区域，未读取内容。');
+  return state;
+}
+
 // 页面不可继续观察的具体原因；顺序即优先级，后续错误码不再叠加。
 export function assertObservable(state) {
-  if (state.unsupportedPage) fail(BACKEND_CODES.NOT_DOUYIN, '当前标签页不在抖音，未读取页面内容。');
-  if (state.loginRequired) fail(BACKEND_CODES.NEEDS_USER, '页面要求登录，请本人手动登录后再观察。');
-  if (state.verificationRequired) fail(BACKEND_CODES.NEEDS_USER, '页面要求人机验证，请本人处理后再观察。');
-  if (state.privateChatVisible) fail(BACKEND_CODES.PRIVATE_AREA, '当前可见私信区域，未采集画面。');
+  assertReadable(state);
   if (state.livePreview) fail(BACKEND_CODES.LIVE_PREVIEW, '当前是直播预览，未采集画面。');
   if (state.videoSelection?.identityConflict) fail(BACKEND_CODES.IDENTITY_CONFLICT, '播放器与作品标识冲突，未继续操作。');
   if (!state.video?.id) fail(BACKEND_CODES.NO_VIDEO, '当前页面没有可识别的视频作品。');
@@ -123,6 +133,7 @@ export function assertObservable(state) {
 }
 
 export function assertReadyToPlay(state) {
+  if (!state.video) fail(BACKEND_CODES.NO_VIDEO, '当前页面没有可识别的视频作品。');
   if (state.video.paused && state.video.ended !== true) fail(BACKEND_CODES.VIDEO_PAUSED, '视频处于暂停状态；本工具不自动播放，请先恢复播放。');
   if (state.video.readyState !== null && state.video.readyState < 2) fail(BACKEND_CODES.NO_VIDEO, '视频尚未就绪，请稍后再观察。');
   return state;

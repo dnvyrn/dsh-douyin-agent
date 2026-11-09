@@ -43,13 +43,15 @@ export function readPageState() {
     const links = [...(container?.querySelectorAll('a[href]') ?? [])].filter(e=>visible(e)&&!e.closest(privateArea));
     const playerId=/(?:^|\s)video_(\d+)(?:\s|$)/.exec(element.closest('[data-e2e="player-container"]')?.className??'')?.[1],activeId=/(?:^|\s)video_(\d+)(?:\s|$)/.exec(activeContainer?.className??'')?.[1];
     videoIdentityConflict=Boolean(playerId&&activeId&&playerId!==activeId);
-    const id = videoIdentityConflict?null:playerId || activeId || links.map(e=>workId(e.href)).find(Boolean) || workId(location.href) || null;
+    const linkedId = links.map(e=>workId(e.href)).find(Boolean) || null, locationId = workId(location.href) || null;
+    const idSource = playerId ? 'player' : activeId ? 'container' : linkedId ? 'link' : locationId ? 'location' : null;
+    const id = videoIdentityConflict?null:playerId || activeId || linkedId || locationId || null;
     const authorElement = links.find(e => /\/user\//.test(e.href)) || [...(container?.querySelectorAll('span,div')??[])].find(e=>e.childElementCount===0 && /^@/.test(clean(e.textContent)) && visible(e));
     const titleElement = container?.querySelector('[data-e2e="video-desc"],[data-e2e="video-title"],[data-e2e="detail-video-info"],[class*="video-info-detail"]');
     const detailAuthor=container?.querySelector('[data-e2e="related-video"]')?.innerText?.split('\n').map(clean).find(Boolean);
     const captionAuthor=/@([^·\n]+)·/.exec(titleElement?.textContent??'')?.[1]?.trim();
     const r = element.getBoundingClientRect();
-    video = { id, url: id ? `https://www.douyin.com/video/${id}` : null,
+    video = { id, idSource, url: id ? `https://www.douyin.com/video/${id}` : null,
       author: boundedAuthor(authorElement?.textContent) || boundedAuthor(detailAuthor) || boundedAuthor(captionAuthor),
       title: (clean(titleElement?.getAttribute('data-e2e')==='detail-video-info'?titleElement.innerText.split('\n')[0]:titleElement?.textContent) || clean(links.find(e=>workId(e.href))?.textContent)).slice(0, 1000) || null,
       time: element.currentTime, duration: Number.isFinite(element.duration) ? element.duration : null,

@@ -69,3 +69,16 @@ test('只读观察器不冒充 Playwright 后端，agent-browser 使用独立 pr
   assert.equal(typeof session.next, 'function');
   assert.equal(paths.agentBrowserProfileDir, '/tmp/dy-profile');
 });
+
+test('没有时长且 ID 只来自链接/地址栏时，不把画面算到该作品名下', () => {
+  for (const idSource of ['location', 'link', null]) {
+    const live = normalizeState(raw({ video: { id: ID, idSource, duration: null, time: 3, paused: false, readyState: 4, viewport: { x: 0, y: 0, width: 640, height: 480 } } }));
+    assert.equal(live.videoSelection.identityConflict, true, String(idSource));
+    assert.throws(() => assertObservable(live), error => error.code === BACKEND_CODES.IDENTITY_CONFLICT);
+  }
+  const real = normalizeState(raw({ video: { ...raw().video, idSource: 'player' } }));
+  assert.equal(real.videoSelection.identityConflict, false);
+  assert.equal(real.video.idSource, 'player');
+  const located = normalizeState(raw({ video: { ...raw().video, idSource: 'location', duration: 30 } }));
+  assert.equal(located.videoSelection.identityConflict, false);
+});
