@@ -31,7 +31,8 @@
     "test:macos": "node --test tests/macos-browser.test.mjs tests/macos-paths.test.mjs tests/diagnostics-edge.test.mjs tests/friend-interactions.test.mjs tests/friend-interactions-guard.test.mjs tests/browser-host-readiness.test.mjs && node --test --test-name-pattern='^宿主焦点：' tests/browser-host-native-focus.test.mjs",
     "test:macos-safety": "node tests/run-macos-safety.mjs",
     "test:native": "node --test verification/dsh-plugin.test.mjs verification/native-launch-command.test.mjs verification/native-settings.test.mjs verification/settings-transport.test.mjs tests/native-watch.test.mjs tests/native-spark.test.mjs tests/native-client.test.mjs",
-    "test:browser": "node verification/browser-live.mjs"
+    "test:browser": "node verification/browser-live.mjs",
+    "test:agent-browser": "node --test tests/agent-browser-cli.test.mjs tests/browser-contract.test.mjs tests/browser-frame-crop.test.mjs tests/douyin-session.test.mjs"
   },
   "dependencies": {
     "@playwright/cli": "0.1.22",
@@ -125,12 +126,15 @@
     "interaction-status.mjs",
     "assets/brand.ico",
     "assets/brand.png",
-    "assets/PROVENANCE.json"
+    "assets/PROVENANCE.json",
+    "page-state.mjs",
+    "browser/"
   ],
   "exports": {
     ".": "./dsh-plugin.mjs",
     "./client": "./client.js",
-    "./package.json": "./package.json"
+    "./package.json": "./package.json",
+    "./browser": "./browser/index.mjs"
   },
   "dsh": {
     "bundle": {

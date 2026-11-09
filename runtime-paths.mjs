@@ -74,6 +74,9 @@ export function resolveRuntimePaths({ env = process.env, home = homedir(), sourc
     mediaCaptureDir: path.join(stateDir, 'media-captures'),
     browserProfileDir: path.join(userRoot, 'cli-profile'),
     browserControlDir: path.join(userRoot, 'control'),
+    // agent-browser 使用独立 profile 与截图工作目录；不与 Playwright 共用浏览器资料目录。
+    agentBrowserProfileDir: path.join(userRoot, 'agent-browser', 'profile'),
+    agentBrowserWorkDir: path.join(userRoot, 'agent-browser', 'frames'),
   };
 }
 

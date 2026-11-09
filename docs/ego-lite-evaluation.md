@@ -1,5 +1,7 @@
 # Ego Lite versus Playwright for the macOS port
 
+> Scope note: this earlier assessment concerns the smallest portability patch. For the later greenfield, AI-native/performance comparison (including agent-browser and new Ego microbenchmarks), see [AI-native stack selection](<ai-native-stack-selection.md>). It does not claim a replacement runtime has already been implemented.
+
 **Recommendation: retain Playwright for the first macOS runtime; use Ego Lite for agent-driven QA now.** “AI-facing” makes Ego easier for an agent to inspect and operate, but does not make its interface compatible with this application's persistent browser controller. A later, explicitly scoped Ego adapter is feasible to investigate; a browser-name swap is not.
 
 Scope: source/document review only, 2026-11-09. No Ego CLI invocation, browser operation, installation, login, credentials inspection, or implementation changes were performed for this assessment. Installed documentation and repository sources are the evidence, not a live adapter test.

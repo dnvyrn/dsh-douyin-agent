@@ -61,6 +61,7 @@ test('darwin fresh defaults use one durable user root, not the package or DSH_HO
     mediaRuntimeRoot: path.join(f.userRoot, 'media'), mediaModelsDir: path.join(f.userRoot, 'media', '.models'),
     mediaCaptureDir: path.join(f.userRoot, 'state', 'media-captures'),
     browserProfileDir: path.join(f.userRoot, 'cli-profile'), browserControlDir: path.join(f.userRoot, 'control'),
+    agentBrowserProfileDir: path.join(f.userRoot, 'agent-browser', 'profile'), agentBrowserWorkDir: path.join(f.userRoot, 'agent-browser', 'frames'),
   });
   assert.deepEqual(f.resolve({ sourceRoot: path.join(f.root, 'Updated Package') }), resolved);
   assert.deepEqual(fs.readdirSync(f.root, { recursive: true }), before);
